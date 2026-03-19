@@ -1,0 +1,57 @@
+{
+  "page_id": "page-slug",
+  "title": "Page Title",
+  "audience": [
+    "このページを読む主な対象者"
+  ],
+  "purpose": [
+    "この画面が存在する目的"
+  ],
+  "background": [
+    "この画面に至る背景",
+    "運用上の前提",
+    "画像だけでは分からない事情"
+  ],
+  "prerequisites": [
+    "この画面に到達する前提条件"
+  ],
+  "after_actions": [
+    "この画面のあとに起こる代表的な流れ"
+  ],
+  "writer_guidance": {
+    "summary_style": [
+      "説明文で特に強調したい観点"
+    ],
+    "must_explain": [
+      "必ず触れてほしい点"
+    ],
+    "avoid": [
+      "説明で避けたい表現や観点"
+    ]
+  },
+  "screen_description_overrides": [
+    "画面全体説明に追加したい内容"
+  ],
+  "item_overrides": {
+    "item-id": {
+      "purpose_extra": [
+        "項目の目的に追加したい説明"
+      ],
+      "state_meaning_extra": [
+        "状態説明に追加したい内容"
+      ],
+      "operation_extra": [
+        "操作方法とその作用に追加したい内容"
+      ],
+      "conditions_extra": [
+        "操作可能条件に追加したい内容"
+      ],
+      "notes": [
+        "補足メモ"
+      ]
+    }
+  },
+  "notes": [
+    "その他の自由メモ"
+  ]
+}

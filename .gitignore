@@ -137,3 +137,12 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Manual capture generated outputs
+docs/_config.yml
+docs/index.md
+docs/ja/index.md
+docs/ja/manual/
+docs/en/
+docs/assets/images/common/
+tools/manual-capture/.artifacts/

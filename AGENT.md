@@ -137,6 +137,25 @@ Implication for future automation:
   - cropped or focused images for individual items
 - content generation should be aware of cross-page linking so that repeated explanations can be linked instead of duplicated
 
+### Link rules
+
+- links to directories should not rely on implicit directory resolution
+- always link explicitly to `index.md`
+- examples:
+  - use `./manual/index.md` instead of `./manual/`
+  - use `/ja/index.md` instead of `/ja/`
+
+- when the destination screen is already known and that destination screen has its own manual page, the source page should include a markdown link to that destination page
+- this applies especially to:
+  - startup transitions
+  - selection flows
+  - menu-driven page transitions
+
+Implication for generation:
+
+- manual pages should prefer explicit inter-page navigation where the next documented page is known
+- index generation should always output explicit `index.md` targets
+
 ## Confirmed Generation And Capture Rules
 
 The following operational rules were confirmed by the user.
