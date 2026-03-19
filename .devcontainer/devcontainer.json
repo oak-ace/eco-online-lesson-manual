@@ -9,15 +9,19 @@
 		"ghcr.io/devcontainers/features/python:1": {}
 	},
 	"containerEnv": {
+		"AWS_PROFILE": "eco-online-dev",
+		"AWS_REGION": "ap-northeast-1",
+		"ECO_BASE_URL": "https://develop.d1ldclq3p5i259.amplifyapp.com",
+		"GIT_REPOSITORY_URL": "https://github.com/oak-ace/eco-online-lesson",
 		"E2E_TEACHER_EMAIL": "${localEnv:E2E_TEACHER_EMAIL:teacher@ace-software.com}",
 		"E2E_PARENT_EMAIL": "${localEnv:E2E_PARENT_EMAIL:parent@ace-software.com}",
 		"E2E_LOGIN_PASSWORD": "${localEnv:E2E_LOGIN_PASSWORD:}"
 	},
 	"mounts": [
 		// AWS CLI 用（ホスト共有でOK）
-		"source=${localEnv:HOME}/.aws,target=/home/node/.aws,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.aws,target=/root/.aws,type=bind,consistency=cached",
 		// GPG 用（Docker volume）
-		"source=devcontainer-gnupg,target=/home/node/.gnupg,type=volume",
+		"source=devcontainer-gnupg,target=/root/.gnupg,type=volume",
 		// CodeX 用（ホスト共有でOK）
 		"source=${localEnv:HOME}/.codex/eco-online-lesson-manual,target=/root/.codex,type=bind,consistency=cached"
 	],
