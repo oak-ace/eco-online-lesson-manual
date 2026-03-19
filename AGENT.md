@@ -75,6 +75,217 @@ Implication for future implementation:
 - captured screenshots should be reusable across languages
 - manual page generation should reference common image paths instead of duplicating language-specific copies
 
+## Confirmed Publishing Strategy
+
+The user confirmed the intended publication flow:
+
+- GitHub Actions will run on updates to the `main` branch
+- on `main` branch registration/update, the documentation generation script will be executed
+- the generated output will then be published to GitHub Pages
+
+Practical implication:
+
+- `main` is the publication branch for this repository
+- manual generation should be executable in CI without manual local steps
+- `.github/workflows/pages.yml` should eventually handle both:
+  - document generation
+  - GitHub Pages deployment
+
+## Confirmed Manual Page Format
+
+The user defined the default structure for manual pages.
+
+### Front matter
+
+Each manual page should start with front matter and include at least:
+
+- `title`: page title
+- `lang`: language code (`en` or `ja`)
+- `tag`: classification tag
+- `version`: target app software version
+
+### Default page body structure
+
+Manual pages should basically follow this order:
+
+1. screen image
+2. explanation of the image
+3. list of items shown in the image
+4. images for individual items that are not yet explained
+5. explanations for those individual items
+
+Interpretation for generation:
+
+- section 3 should work as an item index for the main screenshot
+- if an item has already been explained elsewhere, link to that explanation instead of duplicating it
+- only include additional per-item screenshots for items not yet explained sufficiently by the main image and text
+
+### Required explanation content
+
+Explanations should include the following when applicable:
+
+- the purpose of the displayed information
+- the meaning of each state shown in the displayed information, if state variations exist
+- the operation method and its effect, if the UI allows operation
+- the conditions under which operation is possible, if operation and conditions exist
+
+Implication for future automation:
+
+- generated markdown should likely use a stable section template
+- screenshot capture should support both:
+  - whole-screen images
+  - cropped or focused images for individual items
+- content generation should be aware of cross-page linking so that repeated explanations can be linked instead of duplicated
+
+## Confirmed Generation And Capture Rules
+
+The following operational rules were confirmed by the user.
+
+### Source of truth for captured screens
+
+- manual screenshots should use Playwright mocks as the primary source of truth
+- the reason is to allow simple and repeatable capture
+- real-environment capture is not the default basis for the manual
+
+### Scope of manual targets
+
+- ultimately, all screens are in scope
+- during implementation work, the actual target subset may be specified task-by-task by the user
+
+Implication:
+
+- tooling should support partial local generation for selected screens or flows
+- CI should still support full output generation
+
+### Full regeneration vs partial regeneration
+
+- GitHub Actions should regenerate all screens and documents
+- local work only needs to generate the explicitly requested portion
+
+### Version source
+
+- the manual `version` field should be sourced from `apps/lesson/package.json`
+
+### Language generation policy
+
+- GitHub Actions should generate both Japanese and English outputs
+- during local work, if not otherwise instructed, Japanese-only output is sufficient
+
+### Markdown editing policy
+
+- direct manual edits to generated markdown are not the default
+- if hand-authored content is required, it should live in a separate markdown file
+- generated markdown should include that separate file rather than being edited directly
+
+Implication:
+
+- generated files should remain replaceable
+- hand-maintained content should be isolated in include-friendly companion files
+
+### Personal information policy
+
+- masking of personal information and environment-specific display is not required
+- the manual is intended for internal team use
+
+### CI failure policy
+
+- it is sufficient that failed capture points are identifiable
+- failure handling should be controlled as much as possible on the output/generation side
+
+Implication:
+
+- future scripts should aim to:
+  - continue collecting successful outputs when possible
+  - clearly report failed screens or steps
+  - make it easy to understand what was not captured
+
+### Unknown-items lifecycle
+
+- once an item in `README.md` -> `不明点` is resolved:
+  - if it should remain reusable, it should be transferred to a durable place such as `AGENT.md` or the relevant script
+  - then it should be removed from `README.md`
+- if it is no longer needed after resolution, it can simply be removed
+
+## Proposed Screenshot Naming Rule
+
+To satisfy the requirement for a uniquely definable naming rule, use the following convention unless a future task explicitly changes it.
+
+### Common principles
+
+- use lowercase kebab-case only
+- names should be deterministic from the logical manual target
+- separate:
+  - full-screen captures
+  - focused item captures
+  - language-independent common assets
+- avoid embedding natural-language UI labels directly when a stable route/state identifier exists
+
+### Base directory
+
+- common screenshots:
+  - `docs/assets/images/common/`
+
+### Full-screen captures
+
+Format:
+
+- `screen-{flow}-{page}.png`
+- `screen-{flow}-{page}--{state}.png`
+
+Examples:
+
+- `screen-common-login.png`
+- `screen-teacher-startup.png`
+- `screen-home-startup--in-progress.png`
+- `screen-shared-select-student.png`
+- `screen-home-mypage.png`
+- `screen-home-avatar.png`
+- `screen-teacher-session-content.png`
+
+### Item-level captures
+
+Format:
+
+- `item-{flow}-{page}-{item}.png`
+- `item-{flow}-{page}-{item}--{state}.png`
+
+Examples:
+
+- `item-common-login-email-field.png`
+- `item-common-login-password-field.png`
+- `item-teacher-startup-start-lesson-button.png`
+- `item-home-mypage-avatar-panel.png`
+
+### Dialog captures
+
+Treat dialogs as explicit page states:
+
+- `screen-{flow}-{page}--dialog-{dialog-name}.png`
+
+Examples:
+
+- `screen-teacher-startup--dialog-start-lesson.png`
+- `screen-home-startup--dialog-enter-lesson.png`
+- `screen-teacher-session--dialog-end-lesson.png`
+
+### Identifier guidance
+
+- `flow` should be one of:
+  - `common`
+  - `teacher`
+  - `home`
+  - `shared`
+  - or another stable scenario key if future tooling needs it
+- `page` should be a stable manual page identifier, not necessarily the raw route
+- `state` should be used only when the same page has materially different manual states
+- `item` should be a stable semantic identifier of the UI element
+
+### Version handling
+
+- do not embed app version in screenshot filenames by default
+- version belongs in markdown front matter and generation metadata
+- filenames should stay stable across releases so references are easy to maintain
+
 ## Upstream Application Repository
 
 - Environment variable: `GIT_REPOSITORY_URL=https://github.com/oak-ace/eco-online-lesson`
@@ -415,3 +626,23 @@ When starting a new chat in this repository, assume:
 If further environment inspection is needed, AWS access may be performed using:
 
 - `AWS_PROFILE=eco-online-dev`
+
+## Confirmed Working Rule For Unknown Information
+
+The user requested the following rule for future tool and script implementation work:
+
+- if required information is missing while creating outputs or scripts, do not leave it only in the chat response
+- also record it in `README.md` under a section named `不明点`
+- items in `不明点` should be maintained as a list
+
+Purpose of this rule:
+
+- prevent information loss when work is interrupted unexpectedly
+- reduce the risk of overlooked unresolved questions
+- keep ambiguous points visible until they are clarified
+
+Operational expectation:
+
+- whenever a future task reveals a blocker, ambiguity, or required decision, update:
+  - the chat response
+  - `README.md` -> `不明点`
