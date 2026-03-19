@@ -504,8 +504,8 @@ const localeConfig = {
     rootTitle: "ECO Online Manual",
     rootHeading: "ECO Online Manual",
     rootLinks: [
-      { label: "日本語マニュアル", path: "/ja/index.md" },
-      { label: "English Manual", path: "/en/index.md" },
+      { label: "日本語マニュアル", path: "./ja/index.md" },
+      { label: "English Manual", path: "./en/index.md" },
     ],
     localeIndexTitle: "日本語マニュアル",
     localeIndexHeading: "日本語マニュアル",
@@ -535,8 +535,8 @@ const localeConfig = {
     rootTitle: "ECO Online Manual",
     rootHeading: "ECO Online Manual",
     rootLinks: [
-      { label: "Japanese Manual", path: "/ja/index.md" },
-      { label: "English Manual", path: "/en/index.md" },
+      { label: "Japanese Manual", path: "./ja/index.md" },
+      { label: "English Manual", path: "./en/index.md" },
     ],
     localeIndexTitle: "English Manual",
     localeIndexHeading: "English Manual",

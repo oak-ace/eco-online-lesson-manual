@@ -59,6 +59,12 @@ jobs:
       - name: Generate manual
         run: npm run generate:manual
 
+      - name: Build site with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+
       - name: Upload capture report
         if: always()
         uses: actions/upload-artifact@v4
@@ -68,9 +74,9 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: docs
+          path: ./_site
 
   deploy:
     needs: build
