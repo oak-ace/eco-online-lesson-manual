@@ -15,6 +15,32 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "GitHub: Login",
+      "type": "shell",
+      "command": "gh",
+      "args": [
+        "auth",
+        "login"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Manual: Generate",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "generate:manual"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ]
 }

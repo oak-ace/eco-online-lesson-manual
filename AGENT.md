@@ -162,9 +162,9 @@ The following operational rules were confirmed by the user.
 
 ### Source of truth for captured screens
 
-- manual screenshots should use Playwright mocks as the primary source of truth
-- the reason is to allow simple and repeatable capture
-- real-environment capture is not the default basis for the manual
+- current manual screenshots are captured from the real application in a browser via Playwright automation
+- repeatability is still important, so capture logic should wait on stable screen signals instead of fixed delays
+- Playwright mocks remain a possible future technique for some scenarios, but they are not the current default
 
 ### Scope of manual targets
 
@@ -189,6 +189,10 @@ Implication:
 
 - GitHub Actions should generate both Japanese and English outputs
 - during local work, if not otherwise instructed, Japanese-only output is sufficient
+- Japanese context files under `tools/manual-capture/context/ja/` are the source of truth for explanation intent
+- English manual generation should also read that Japanese context as its base input
+- if English-specific overrides are ever needed, they should be additive and not replace Japanese context as the primary source
+- context files are authoring inputs for Codex and generator logic, not content that must be emitted verbatim into the final manual
 
 ### Markdown editing policy
 

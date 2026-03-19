@@ -13,13 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..");
 const docsRoot = path.join(repoRoot, "docs");
 const imagesRoot = path.join(docsRoot, "assets", "images", "common");
-const contextRoot = path.join(
-  repoRoot,
-  "tools",
-  "manual-capture",
-  "context",
-  "ja",
-);
+const contextBaseRoot = path.join(repoRoot, "tools", "manual-capture", "context");
 const artifactsRoot = path.join(
   repoRoot,
   "tools",
@@ -428,12 +422,14 @@ const itemImageName = (pageSpec, item) =>
 const ensureOutputDirs = async () => {
   await mkdir(imagesRoot, { recursive: true });
   await mkdir(path.join(docsRoot, "ja", "manual"), { recursive: true });
+  await mkdir(path.join(docsRoot, "en", "manual"), { recursive: true });
   await mkdir(artifactsRoot, { recursive: true });
 };
 
 const cleanOutputDirs = async () => {
   await rm(imagesRoot, { recursive: true, force: true });
   await rm(path.join(docsRoot, "ja", "manual"), { recursive: true, force: true });
+  await rm(path.join(docsRoot, "en", "manual"), { recursive: true, force: true });
 };
 
 const loadVersion = async () => {
@@ -441,8 +437,7 @@ const loadVersion = async () => {
   return JSON.parse(raw).version ?? "0.0.0";
 };
 
-const loadPageContext = async (pageSpec) => {
-  const contextPath = path.join(contextRoot, `${pageSpec.slug}.json`);
+const loadContextFile = async (contextPath) => {
   try {
     return JSON.parse(await readFile(contextPath, "utf8"));
   } catch (error) {
@@ -453,31 +448,414 @@ const loadPageContext = async (pageSpec) => {
   }
 };
 
-const renderMarkdown = ({ pageSpec, version, pageContext }) => {
+const mergePageContext = (baseContext, overrideContext) => {
+  if (!baseContext) {
+    return overrideContext;
+  }
+  if (!overrideContext) {
+    return baseContext;
+  }
+
+  return {
+    ...baseContext,
+    ...overrideContext,
+    item_overrides: {
+      ...(baseContext.item_overrides ?? {}),
+      ...(overrideContext.item_overrides ?? {}),
+    },
+  };
+};
+
+const loadPageContext = async (pageSpec, lang) => {
+  const jaContext = await loadContextFile(
+    path.join(contextBaseRoot, "ja", `${pageSpec.slug}.json`),
+  );
+
+  if (lang === "ja") {
+    return jaContext;
+  }
+
+  const localizedOverride = await loadContextFile(
+    path.join(contextBaseRoot, lang, `${pageSpec.slug}.json`),
+  );
+  return mergePageContext(jaContext, localizedOverride);
+};
+
+const localeConfig = {
+  ja: {
+    frontMatterLang: "ja",
+    titlePrefix: "",
+    section1: "1. 画面画像",
+    section2: "2. 画像の説明",
+    section3: "3. 画像内各項目の一覧",
+    section41: "4-1. 項目の画像",
+    section42: "4-2. 項目の説明",
+    relatedPagesHeading: "関連する遷移先ページ",
+    audienceHeading: "想定読者",
+    purposeHeading: "画面の目的",
+    backgroundHeading: "背景",
+    prerequisitesHeading: "この画面に到達する前提",
+    afterActionsHeading: "この画面のあとに続く流れ",
+    purposeLabel: "目的",
+    statesLabel: "状態の意味",
+    operationLabel: "操作方法とその作用",
+    conditionsLabel: "操作可能な条件",
+    notesLabel: "補足",
+    rootTitle: "ECO Online Manual",
+    rootHeading: "ECO Online Manual",
+    rootLinks: [
+      { label: "日本語マニュアル", path: "/ja/index.md" },
+      { label: "English Manual", path: "/en/index.md" },
+    ],
+    localeIndexTitle: "日本語マニュアル",
+    localeIndexHeading: "日本語マニュアル",
+    localeIndexLinkLabel: "マニュアル一覧",
+    manualIndexTitle: "Manual Index",
+    manualIndexHeading: "マニュアル一覧",
+  },
+  en: {
+    frontMatterLang: "en",
+    titlePrefix: "",
+    section1: "1. Screen Image",
+    section2: "2. Screen Description",
+    section3: "3. Item List",
+    section41: "4-1. Item Images",
+    section42: "4-2. Item Details",
+    relatedPagesHeading: "Related Destination Pages",
+    audienceHeading: "Audience",
+    purposeHeading: "Purpose",
+    backgroundHeading: "Background",
+    prerequisitesHeading: "Prerequisites",
+    afterActionsHeading: "What Happens Next",
+    purposeLabel: "Purpose",
+    statesLabel: "Meaning of States",
+    operationLabel: "How to Operate and What Happens",
+    conditionsLabel: "Conditions for Operation",
+    notesLabel: "Notes",
+    rootTitle: "ECO Online Manual",
+    rootHeading: "ECO Online Manual",
+    rootLinks: [
+      { label: "Japanese Manual", path: "/ja/index.md" },
+      { label: "English Manual", path: "/en/index.md" },
+    ],
+    localeIndexTitle: "English Manual",
+    localeIndexHeading: "English Manual",
+    localeIndexLinkLabel: "Manual Index",
+    manualIndexTitle: "Manual Index",
+    manualIndexHeading: "Manual Index",
+  },
+};
+
+const enPageContent = {
+  "setup-device": {
+    description:
+      "This screen is used to choose the device mode before login or when reconfiguring the device.",
+    imageDescription:
+      "It shows the software version, reset action, device mode choices, and the login entry button.",
+    nextPages: [{ slug: "login", label: "Login" }],
+    items: {
+      "software-version": {
+        label: "Software Version",
+        purpose: "This display shows the current app version.",
+        states: ["The displayed value is the version currently installed on the device."],
+      },
+      "reset-button": {
+        label: "Reset Button",
+        purpose: "This action resets stored device state.",
+        operation:
+          "Selecting it clears stored data and returns the device to a state that is easier to configure again.",
+      },
+      "device-mode": {
+        label: "Device Mode Selector",
+        purpose: "This control chooses whether the device is used for Home, Teacher, or Shared mode.",
+        states: [
+          "Home is for home use.",
+          "Teacher is for the lesson host device.",
+          "Shared is for a shared device.",
+        ],
+      },
+      "login-button": {
+        label: "Login Button",
+        purpose: "This is the main action for continuing with the current device mode.",
+        operation:
+          "Selecting it moves to the login screen or to the route for the selected mode, depending on the current authentication state.",
+      },
+    },
+  },
+  login: {
+    description:
+      "This screen is used to authenticate with an email address and password. After login, the route depends on the device mode and role.",
+    imageDescription:
+      "It shows the email field, password field, and the login button.",
+    nextPages: [
+      { slug: "home-switch-student", label: "Home Route First Screen" },
+      { slug: "teacher-select-class", label: "Teacher Class Selection" },
+      { slug: "shared-select-class", label: "Shared Class Selection" },
+    ],
+    items: {
+      "email-field": {
+        label: "Email Field",
+        purpose: "This field is used to enter the email address for login.",
+        operation: "Enter the account email address.",
+      },
+      "password-field": {
+        label: "Password Field",
+        purpose: "This field is used to enter the password for login.",
+        operation: "Enter the account password.",
+      },
+      "login-button": {
+        label: "Login Button",
+        purpose: "This is the main action for signing in with the entered credentials.",
+        operation:
+          "Selecting it starts authentication and moves to the destination route if login succeeds.",
+        conditions: "Valid credentials must be entered.",
+      },
+    },
+  },
+  "home-switch-student": {
+    description:
+      "This is the first screen after logging in through the Home route, where the student and class are confirmed before starting.",
+    imageDescription:
+      "It shows the target student, school and class information, and the start button.",
+    nextPages: [{ slug: "home-startup", label: "Home Startup" }],
+    items: {
+      "student-name": {
+        label: "Student Display",
+        purpose: "This display shows which student is currently selected for this device.",
+      },
+      "class-info": {
+        label: "Class Information",
+        purpose: "This display shows the school name, class name, and level color linked to the selected student.",
+      },
+      "start-button": {
+        label: "Start Button",
+        purpose: "This is the main action for starting the Home route with the selected student and class.",
+        operation: "Selecting it opens the Home startup screen.",
+      },
+    },
+  },
+  "home-startup": {
+    description:
+      "This is the startup screen for home devices. Homework, progress checking, and lesson entry all start from here.",
+    imageDescription:
+      "It shows lesson information, menu controls, and the list of learning content.",
+    nextPages: [{ slug: "home-mypage", label: "My Page" }],
+    items: {
+      "lesson-header": {
+        label: "Lesson Header",
+        purpose: "This display shows the current lesson and class information.",
+      },
+      "menu-button": {
+        label: "Menu Button",
+        purpose: "This button opens the main menu for actions such as checking progress or joining a lesson.",
+        operation: "Selecting it opens the startup menu.",
+      },
+      "content-list": {
+        label: "Content List",
+        purpose: "This display shows the learning materials and content available from this screen.",
+      },
+    },
+  },
+  "home-mypage": {
+    description:
+      "This page is used to check the student's progress, points, and learning status.",
+    imageDescription:
+      "It shows the student name, coins, points, next lesson information, and progress UI.",
+    nextPages: [{ slug: "home-avatar", label: "Avatar" }],
+    items: {
+      "profile-header": {
+        label: "Profile Header",
+        purpose: "This display shows the selected student's basic information, such as name and coin balance.",
+      },
+      "next-class": {
+        label: "Next Lesson Information",
+        purpose: "This display shows the schedule and time of the next lesson.",
+      },
+      "progress-panel": {
+        label: "Progress Panel",
+        purpose: "This display is used to review progress by unit and related actions.",
+      },
+    },
+  },
+  "home-avatar": {
+    description:
+      "This page is used to review and change the student's avatar and background color.",
+    imageDescription:
+      "It shows the coin balance, selected avatar, background color, filters, and the avatar list.",
+    items: {
+      "avatar-header": {
+        label: "Avatar Header",
+        purpose: "This display shows the selected student's name and coin balance.",
+      },
+      "preview-panel": {
+        label: "Preview Panel",
+        purpose: "This display shows the currently selected avatar and background color.",
+      },
+      "filter-panel": {
+        label: "Filter Controls",
+        purpose: "These controls filter the avatar list by ownership state or category.",
+        operation: "Changing a condition updates the avatar candidates shown on the screen.",
+      },
+    },
+  },
+  "teacher-select-class": {
+    description:
+      "This is the first screen for the Teacher route, where the class is selected before lesson startup.",
+    imageDescription:
+      "It shows the teacher name, school and class information, pager controls, and the select button.",
+    nextPages: [{ slug: "teacher-startup", label: "Teacher Startup" }],
+    items: {
+      "teacher-name": {
+        label: "Teacher Name",
+        purpose: "This display identifies the signed-in teacher context.",
+      },
+      "class-card": {
+        label: "Class Card",
+        purpose: "This display shows the currently selected school and class information.",
+      },
+      "select-button": {
+        label: "Select Button",
+        purpose: "This is the main action for confirming the current class and moving to the teacher startup screen.",
+        operation: "Selecting it opens the Teacher startup screen for the chosen class.",
+      },
+    },
+  },
+  "teacher-startup": {
+    description:
+      "This is the startup screen for the Teacher route. Lesson preparation and class operation start here.",
+    imageDescription:
+      "It shows lesson information, menu controls, and the student list for the class.",
+    items: {
+      "lesson-header": {
+        label: "Lesson Header",
+        purpose: "This display shows the current lesson and class information.",
+      },
+      "menu-button": {
+        label: "Menu Button",
+        purpose: "This button opens the menu for teacher-side actions.",
+        operation: "Selecting it opens the startup menu.",
+      },
+      "student-list": {
+        label: "Student List",
+        purpose: "This display shows the students linked to the selected class.",
+      },
+    },
+  },
+  "shared-select-class": {
+    description:
+      "This is the first class selection screen for the Shared route.",
+    imageDescription:
+      "It shows the teacher name, school and class information, pager controls, and the select button.",
+    nextPages: [{ slug: "shared-select-student", label: "Shared Student Selection" }],
+    items: {
+      "teacher-name": {
+        label: "Teacher Name",
+        purpose: "This display identifies the signed-in teacher context used for the shared route.",
+      },
+      "class-card": {
+        label: "Class Card",
+        purpose: "This display shows the currently selected school and class information.",
+      },
+      "select-button": {
+        label: "Select Button",
+        purpose: "This is the main action for confirming the class and moving to student selection.",
+        operation: "Selecting it opens the student selection screen for the chosen class.",
+      },
+    },
+  },
+  "shared-select-student": {
+    description:
+      "This screen is used to choose the student who will use the shared device.",
+    imageDescription:
+      "It shows the selected class information, the student selector, and the select button.",
+    nextPages: [{ slug: "shared-startup", label: "Shared Startup" }],
+    items: {
+      "class-info": {
+        label: "Class Information",
+        purpose: "This display shows the school and class currently selected for the shared route.",
+      },
+      "student-selector": {
+        label: "Student Selector",
+        purpose: "This control chooses which student will use the shared device.",
+        operation: "Choose the target student from the available list.",
+      },
+      "select-button": {
+        label: "Select Button",
+        purpose: "This is the main action for confirming the student and moving to the shared startup screen.",
+        operation: "Selecting it opens the Shared startup screen for the chosen student.",
+      },
+    },
+  },
+  "shared-startup": {
+    description:
+      "This is the startup screen for the Shared route.",
+    imageDescription:
+      "It shows lesson information, menu controls, and the list of learning content.",
+    items: {
+      "lesson-header": {
+        label: "Lesson Header",
+        purpose: "This display shows the current lesson and class information.",
+      },
+      "menu-button": {
+        label: "Menu Button",
+        purpose: "This button opens the shared-route menu.",
+        operation: "Selecting it opens the startup menu.",
+      },
+      "content-list": {
+        label: "Content List",
+        purpose: "This display shows the learning materials and content available from this screen.",
+      },
+    },
+  },
+};
+
+const getLocalizedPageSpec = (pageSpec, lang) => {
+  if (lang !== "en") {
+    return pageSpec;
+  }
+
+  const override = enPageContent[pageSpec.slug];
+  if (!override) {
+    return pageSpec;
+  }
+
+  return {
+    ...pageSpec,
+    title: override.title ?? pageSpec.title,
+    description: override.description ?? pageSpec.description,
+    imageDescription: override.imageDescription ?? pageSpec.imageDescription,
+    nextPages: override.nextPages ?? pageSpec.nextPages,
+    items: pageSpec.items.map((item) => ({
+      ...item,
+      ...(override.items?.[item.id] ?? {}),
+    })),
+  };
+};
+
+const renderMarkdown = ({ pageSpec, version, pageContext, lang }) => {
+  const locale = localeConfig[lang];
+  const localizedPageSpec = getLocalizedPageSpec(pageSpec, lang);
+  const shouldUseContextText = lang === "ja";
   const summaryLines = [
-    pageSpec.description,
-    pageSpec.imageDescription,
-    ...mergeTextParts(pageContext?.screen_description_overrides),
+    localizedPageSpec.description,
+    localizedPageSpec.imageDescription,
+    ...(shouldUseContextText
+      ? mergeTextParts(pageContext?.screen_description_overrides)
+      : []),
   ];
 
-  const contextSections = [
-    { heading: "想定読者", values: pageContext?.audience },
-    { heading: "画面の目的", values: pageContext?.purpose },
-    { heading: "背景", values: pageContext?.background },
-    { heading: "この画面に到達する前提", values: pageContext?.prerequisites },
-    { heading: "この画面のあとに続く流れ", values: pageContext?.after_actions },
-  ].filter((section) => Array.isArray(section.values) && section.values.length > 0);
-
-  const itemIndexLines = pageSpec.items
+  const itemIndexLines = localizedPageSpec.items
     .map((item) => `- [${item.label}](#item-${item.id})`)
     .join("\n");
-  const nextPageLines = (pageSpec.nextPages ?? [])
+  const nextPageLines = (localizedPageSpec.nextPages ?? [])
     .map((pageLink) => `- [${pageLink.label}](./${pageLink.slug}.md)`)
     .join("\n");
 
-  const itemSections = pageSpec.items
+  const itemSections = localizedPageSpec.items
     .map((item) => {
-      const override = pageContext?.item_overrides?.[item.id] ?? {};
+      const override = shouldUseContextText
+        ? (pageContext?.item_overrides?.[item.id] ?? {})
+        : {};
       const purposeText = mergeTextParts(item.purpose, override.purpose_extra).join(
         " ",
       );
@@ -497,73 +875,68 @@ const renderMarkdown = ({ pageSpec, version, pageContext }) => {
         `<a id="item-${item.id}"></a>`,
         `### ${item.label}`,
         "",
-        `![${item.label}](${imageMarkdownPath(itemImageName(pageSpec, item))})`,
+        `![${item.label}](${imageMarkdownPath(itemImageName(localizedPageSpec, item))})`,
         "",
-        `- 目的: ${markdownEscape(purposeText)}`,
+        `- ${locale.purposeLabel}: ${markdownEscape(purposeText)}`,
       ];
 
       if (stateText) {
-        lines.push(`- 状態の意味: ${stateText.split(" / ").map(markdownEscape).join(" / ")}`);
+        lines.push(`- ${locale.statesLabel}: ${stateText.split(" / ").map(markdownEscape).join(" / ")}`);
       }
       if (operationText) {
-        lines.push(`- 操作方法とその作用: ${markdownEscape(operationText)}`);
+        lines.push(`- ${locale.operationLabel}: ${markdownEscape(operationText)}`);
       }
       if (conditionsText) {
-        lines.push(`- 操作可能な条件: ${markdownEscape(conditionsText)}`);
+        lines.push(`- ${locale.conditionsLabel}: ${markdownEscape(conditionsText)}`);
       }
       if (Array.isArray(override.notes) && override.notes.length > 0) {
-        lines.push(`- 補足: ${override.notes.map(markdownEscape).join(" / ")}`);
+        lines.push(`- ${locale.notesLabel}: ${override.notes.map(markdownEscape).join(" / ")}`);
       }
       return lines.join("\n");
     })
     .join("\n\n");
 
   return `---
-title: ${pageSpec.title}
-lang: ja
-tag: ${pageSpec.tag}
+title: ${localizedPageSpec.title}
+lang: ${locale.frontMatterLang}
+tag: ${localizedPageSpec.tag}
 version: ${version}
 ---
 
-# ${pageSpec.title}
+# ${localizedPageSpec.title}
 
-## 1. 画面画像
+## ${locale.section1}
 
-![${pageSpec.title}](${imageMarkdownPath(pageSpec.imageName)})
+![${localizedPageSpec.title}](${imageMarkdownPath(localizedPageSpec.imageName)})
 
-## 2. 画像の説明
+## ${locale.section2}
 
 ${summaryLines.map(markdownEscape).join("\n\n")}
 
-${contextSections
-  .map(
-    (section) =>
-      `### ${section.heading}\n\n${section.values.map((value) => `- ${markdownEscape(value)}`).join("\n")}`,
-  )
-  .join("\n\n")}
+${nextPageLines ? `### ${locale.relatedPagesHeading}\n\n${nextPageLines}` : ""}
 
-${nextPageLines ? `### 関連する遷移先ページ\n\n${nextPageLines}` : ""}
-
-## 3. 画像内各項目の一覧
+## ${locale.section3}
 
 ${itemIndexLines}
 
-## 4-1. 項目の画像
+## ${locale.section41}
 
-## 4-2. 項目の説明
+## ${locale.section42}
 
 ${itemSections}
 `;
 };
 
-const renderManualIndex = ({ version }) => `---
-title: Manual Index
-lang: ja
+const renderManualIndex = ({ version, lang }) => {
+  const locale = localeConfig[lang];
+  return `---
+title: ${locale.manualIndexTitle}
+lang: ${locale.frontMatterLang}
 tag: index
 version: ${version}
 ---
 
-# マニュアル一覧
+# ${locale.manualIndexHeading}
 
 - [Setup Device](./setup-device.md)
 - [Login](./login.md)
@@ -577,30 +950,37 @@ version: ${version}
 - [Shared Student Selection](./shared-select-student.md)
 - [Shared Startup](./shared-startup.md)
 `;
+};
 
-const renderRootIndex = () => `---
-title: ECO Online Manual
+const renderRootIndex = () => {
+  const locale = localeConfig.ja;
+  return `---
+title: ${locale.rootTitle}
 lang: ja
 tag: index
 version: manual
 ---
 
-# ECO Online Manual
+# ${locale.rootHeading}
 
-- [日本語マニュアル](/ja/index.md)
+${locale.rootLinks.map((link) => `- [${link.label}](${link.path})`).join("\n")}
 `;
+};
 
-const renderJaIndex = ({ version }) => `---
-title: 日本語マニュアル
-lang: ja
+const renderLocaleIndex = ({ version, lang }) => {
+  const locale = localeConfig[lang];
+  return `---
+title: ${locale.localeIndexTitle}
+lang: ${locale.frontMatterLang}
 tag: index
 version: ${version}
 ---
 
-# 日本語マニュアル
+# ${locale.localeIndexHeading}
 
-- [マニュアル一覧](./manual/index.md)
+- [${locale.localeIndexLinkLabel}](./manual/index.md)
 `;
+};
 
 const renderConfig = () => `title: ECO Online Manual
 markdown: kramdown
@@ -969,12 +1349,14 @@ const generateDocs = async () => {
   }
 
   for (const pageSpec of pageSpecs) {
-    const pageContext = await loadPageContext(pageSpec);
-    await writeFile(
-      path.join(docsRoot, "ja", "manual", `${pageSpec.slug}.md`),
-      renderMarkdown({ pageSpec, version, pageContext }),
-      "utf8",
-    );
+    for (const lang of ["ja", "en"]) {
+      const pageContext = await loadPageContext(pageSpec, lang);
+      await writeFile(
+        path.join(docsRoot, lang, "manual", `${pageSpec.slug}.md`),
+        renderMarkdown({ pageSpec, version, pageContext, lang }),
+        "utf8",
+      );
+    }
     report.generatedPages.push(pageSpec.slug);
   }
 
@@ -982,12 +1364,22 @@ const generateDocs = async () => {
   await writeFile(path.join(docsRoot, "index.md"), renderRootIndex(), "utf8");
   await writeFile(
     path.join(docsRoot, "ja", "index.md"),
-    renderJaIndex({ version }),
+    renderLocaleIndex({ version, lang: "ja" }),
     "utf8",
   );
   await writeFile(
     path.join(docsRoot, "ja", "manual", "index.md"),
-    renderManualIndex({ version }),
+    renderManualIndex({ version, lang: "ja" }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(docsRoot, "en", "index.md"),
+    renderLocaleIndex({ version, lang: "en" }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(docsRoot, "en", "manual", "index.md"),
+    renderManualIndex({ version, lang: "en" }),
     "utf8",
   );
   await writeFile(

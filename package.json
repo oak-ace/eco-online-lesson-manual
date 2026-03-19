@@ -1,0 +1,12 @@
+{
+  "name": "eco-online-lesson-manual",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "generate:manual": "node tools/manual-capture/generate-initial-manual.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  }
+}

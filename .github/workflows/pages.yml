@@ -1,0 +1,78 @@
+name: Build And Deploy Manual
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || 'https://github.com/oak-ace/eco-online-lesson' }}
+  UPSTREAM_REPO_DIR: ${{ github.workspace }}/.cache/upstream/eco-online-lesson
+  ECO_BASE_URL: ${{ secrets.ECO_BASE_URL }}
+  E2E_TEACHER_EMAIL: ${{ secrets.E2E_TEACHER_EMAIL }}
+  E2E_PARENT_EMAIL: ${{ secrets.E2E_PARENT_EMAIL }}
+  E2E_LOGIN_PASSWORD: ${{ secrets.E2E_LOGIN_PASSWORD }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout manual repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Checkout upstream app repository
+        run: |
+          mkdir -p "$(dirname "$UPSTREAM_REPO_DIR")"
+          git clone --depth 1 --branch develop "$GIT_REPOSITORY_URL" "$UPSTREAM_REPO_DIR"
+
+      - name: Generate manual
+        run: npm run generate:manual
+
+      - name: Upload capture report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-capture-report
+          path: tools/manual-capture/.artifacts/
+          if-no-files-found: ignore
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
