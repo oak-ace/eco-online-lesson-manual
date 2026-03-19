@@ -17,6 +17,7 @@ concurrency:
 
 env:
   GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || 'https://github.com/oak-ace/eco-online-lesson' }}
+  UPSTREAM_REPO_PATH: .cache/upstream/eco-online-lesson
   UPSTREAM_REPO_DIR: ${{ github.workspace }}/.cache/upstream/eco-online-lesson
   ECO_BASE_URL: ${{ secrets.ECO_BASE_URL }}
   E2E_TEACHER_EMAIL: ${{ secrets.E2E_TEACHER_EMAIL }}
@@ -48,9 +49,12 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Checkout upstream app repository
-        run: |
-          mkdir -p "$(dirname "$UPSTREAM_REPO_DIR")"
-          git clone --depth 1 --branch develop "$GIT_REPOSITORY_URL" "$UPSTREAM_REPO_DIR"
+        uses: actions/checkout@v4
+        with:
+          repository: oak-ace/eco-online-lesson
+          ref: develop
+          path: ${{ env.UPSTREAM_REPO_PATH }}
+          token: ${{ secrets.UPSTREAM_REPO_TOKEN }}
 
       - name: Generate manual
         run: npm run generate:manual
