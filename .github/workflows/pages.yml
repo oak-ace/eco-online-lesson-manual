@@ -20,6 +20,9 @@ env:
   UPSTREAM_REPO_PATH: .cache/upstream/eco-online-lesson
   UPSTREAM_REPO_DIR: ${{ github.workspace }}/.cache/upstream/eco-online-lesson
   ECO_BASE_URL: ${{ secrets.ECO_BASE_URL }}
+  ECO_API_TEST_BEARER_TOKEN: ${{ secrets.ECO_API_TEST_BEARER_TOKEN }}
+  ECO_SETUP_EMAIL: ${{ secrets.ECO_SETUP_EMAIL }}
+  ECO_SETUP_PASSWORD: ${{ secrets.ECO_SETUP_PASSWORD }}
   E2E_TEACHER_EMAIL: ${{ secrets.E2E_TEACHER_EMAIL }}
   E2E_PARENT_EMAIL: ${{ secrets.E2E_PARENT_EMAIL }}
   E2E_LOGIN_PASSWORD: ${{ secrets.E2E_LOGIN_PASSWORD }}
@@ -56,6 +59,9 @@ jobs:
           path: ${{ env.UPSTREAM_REPO_PATH }}
           token: ${{ secrets.UPSTREAM_REPO_TOKEN }}
 
+      - name: Initialize fixture data
+        run: npm run setup:image-fixtures -- init
+
       - name: Generate manual
         run: npm run generate:manual
 
@@ -72,6 +78,7 @@ jobs:
           name: manual-capture-report
           path: tools/manual-capture/.artifacts/
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
