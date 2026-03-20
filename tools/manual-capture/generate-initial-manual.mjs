@@ -159,32 +159,49 @@ const pageSpecs = [
   },
   {
     slug: "home-startup",
-    title: "Home Startup",
+    title: "Homework Page",
     tag: "home",
     imageName: "screen-home-startup.png",
     description:
-      "家庭端末向けの起動画面です。宿題、進捗確認、授業参加導線をここから利用します。",
+      "家庭端末向けの HomeworkPage です。宿題、進捗確認、授業参加導線をここから利用します。",
     imageDescription:
-      "レッスン情報、メニュー、教材一覧が表示される Home の起動画面です。",
+      "ヘッダー、メニュー、Student Card コンテンツが表示される Home の HomeworkPage です。",
     nextPages: [
       { slug: "home-mypage", label: "My Page" },
+      { slug: "home-lesson", label: "Home Lesson" },
     ],
     items: [
       {
-        id: "lesson-header",
-        label: "レッスンヘッダー",
-        purpose: "現在対象のレッスンやクラス情報を確認するための表示です。",
+        id: "school-name",
+        label: "学校名表示",
+        purpose: "現在表示中の学習対象に紐づく学校名を確認するための表示です。",
+      },
+      {
+        id: "class-name",
+        label: "クラス名表示",
+        purpose: "Homework 表示モードであることと、現在の表示区分を確認するための表示です。",
+      },
+      {
+        id: "level-color",
+        label: "レベル色表示",
+        purpose: "現在の学習対象のレベル色を確認するための表示です。",
+      },
+      {
+        id: "unit-button",
+        label: "UNIT ボタン",
+        purpose: "表示する Unit を確認・切り替えるための操作です。",
+        operation: "押下すると選択可能な Unit を切り替えます。",
+      },
+      {
+        id: "student-status",
+        label: "生徒ステータス表示",
+        purpose: "現在の生徒表示状態を確認するための表示です。",
       },
       {
         id: "menu-button",
         label: "メニューボタン",
         purpose: "進捗確認や授業参加などの操作メニューを開くための操作です。",
         operation: "押下すると起動画面の操作メニューを表示します。",
-      },
-      {
-        id: "content-list",
-        label: "教材一覧",
-        purpose: "この画面から扱う教材や学習コンテンツの一覧を確認するための表示です。",
       },
     ],
   },
@@ -279,29 +296,52 @@ const pageSpecs = [
   },
   {
     slug: "teacher-startup",
-    title: "Teacher Startup",
+    title: "Preview Page",
     tag: "teacher",
     imageName: "screen-teacher-startup.png",
     description:
-      "Teacher 向けの起動画面です。授業内容を確認し、授業開始や各種操作の入口になります。",
+      "Teacher 向けの PreviewPage です。授業内容を確認し、授業開始や各種操作の入口になります。",
     imageDescription:
-      "レッスン情報、メニュー、教材一覧、参加生徒一覧が表示される Teacher 起動画面です。",
+      "ヘッダー、メニュー、Student Card コンテンツ、StudentsPanel が表示される Teacher の PreviewPage です。",
+    nextPages: [
+      { slug: "teacher-lesson", label: "Teacher Lesson" },
+    ],
     items: [
       {
-        id: "lesson-header",
-        label: "レッスンヘッダー",
-        purpose: "対象クラスとレッスン情報を確認するための表示です。",
+        id: "school-name",
+        label: "学校名表示",
+        purpose: "現在対象の学校名を確認するための表示です。",
+      },
+      {
+        id: "class-name",
+        label: "クラス名表示",
+        purpose: "現在対象のクラス名を確認するための表示です。",
+      },
+      {
+        id: "level-color",
+        label: "レベル色表示",
+        purpose: "現在のレッスン色を確認・変更するための表示兼操作です。",
+      },
+      {
+        id: "unit-button",
+        label: "UNIT ボタン",
+        purpose: "Preview で表示する Unit を確認・変更するための操作です。",
+      },
+      {
+        id: "students-toggle",
+        label: "StudentsPanel 表示切替",
+        purpose: "StudentsPanel の開閉を切り替える操作です。",
+      },
+      {
+        id: "students-level",
+        label: "StudentsPanel モード切替",
+        purpose: "StudentsPanel の表示モードを icon / simple / full / progress で切り替える操作です。",
       },
       {
         id: "menu-button",
         label: "メニューボタン",
         purpose: "Start Lesson などの主要操作を開くための操作です。",
         operation: "押下すると Teacher 用の起動メニューを表示します。",
-      },
-      {
-        id: "student-list",
-        label: "生徒一覧",
-        purpose: "対象授業に紐づく生徒を確認するための表示です。",
       },
     ],
   },
@@ -370,18 +410,33 @@ const pageSpecs = [
   },
   {
     slug: "shared-startup",
-    title: "Shared Startup",
+    title: "Shared Homework Page",
     tag: "shared",
     imageName: "screen-shared-startup.png",
     description:
-      "共用端末向けの起動画面です。授業参加や教材参照の入口になります。",
+      "共用端末向けの HomeworkPage です。授業参加や教材参照の入口になります。",
     imageDescription:
-      "レッスン情報、メニュー、教材一覧が表示される Shared 起動画面です。",
+      "ヘッダー、メニュー、Student Card コンテンツが表示される Shared の HomeworkPage です。",
     items: [
       {
-        id: "lesson-header",
-        label: "レッスンヘッダー",
-        purpose: "現在対象のクラスとレッスン情報を確認するための表示です。",
+        id: "school-name",
+        label: "学校名表示",
+        purpose: "現在対象の学校名を確認するための表示です。",
+      },
+      {
+        id: "class-name",
+        label: "クラス名表示",
+        purpose: "Shared Homework 表示モードであることを確認するための表示です。",
+      },
+      {
+        id: "level-color",
+        label: "レベル色表示",
+        purpose: "現在の学習対象のレベル色を確認するための表示です。",
+      },
+      {
+        id: "unit-button",
+        label: "UNIT ボタン",
+        purpose: "表示する Unit を確認・切り替えるための操作です。",
       },
       {
         id: "menu-button",
@@ -389,11 +444,159 @@ const pageSpecs = [
         purpose: "Enter Lesson などの主要操作を開くための操作です。",
         operation: "押下すると Shared 用の起動メニューを表示します。",
       },
-      {
-        id: "content-list",
-        label: "教材一覧",
-        purpose: "利用可能な教材や学習コンテンツを確認するための表示です。",
-      },
+    ],
+  },
+  {
+    slug: "teacher-lesson",
+    title: "Teacher Lesson Page",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-session.png",
+    description:
+      "Teacher が実際の Lesson session に入った画面です。Preview と異なり、同期状態と Lesson 操作が有効になります。",
+    imageDescription:
+      "Lesson ヘッダー、同期モード、StudentsPanel 操作、Student Card コンテンツが表示されます。",
+    nextPages: [
+      { slug: "teacher-panel-none-md", label: "Teacher StudentsPanel Hidden" },
+      { slug: "teacher-panel-icon-md", label: "Teacher StudentsPanel Icon" },
+      { slug: "teacher-panel-simple-md", label: "Teacher StudentsPanel Simple" },
+      { slug: "teacher-panel-full-md", label: "Teacher StudentsPanel Full" },
+      { slug: "teacher-panel-progress-md", label: "Teacher StudentsPanel Progress" },
+      { slug: "teacher-content-vocabulary-particle", label: "Vocabulary Particle" },
+      { slug: "teacher-content-games", label: "Games" },
+    ],
+    items: [
+      { id: "school-name", label: "学校名表示", purpose: "授業対象の学校名を確認するための表示です。" },
+      { id: "class-name", label: "クラス名表示", purpose: "授業対象のクラス名を確認するための表示です。" },
+      { id: "level-color", label: "レベル色表示", purpose: "現在のレッスン色と表示対象を確認するための表示です。" },
+      { id: "unit-button", label: "UNIT ボタン", purpose: "表示する Unit を確認・切り替えるための操作です。" },
+      { id: "section", label: "SECTION 表示", purpose: "現在の SECTION を確認するための表示です。" },
+      { id: "menu-button", label: "メニューボタン", purpose: "End Lesson や content 切替を含む Lesson メニューを開くための操作です。" },
+      { id: "students-toggle", label: "StudentsPanel 表示切替", purpose: "StudentsPanel の開閉を切り替える操作です。" },
+      { id: "students-level", label: "StudentsPanel モード切替", purpose: "StudentsPanel の表示モードを変更する操作です。" },
+      { id: "sync-mode", label: "同期モード操作", purpose: "Study / Play を切り替え、内容の同期方法を制御する操作です。" },
+      { id: "datetime", label: "日時表示", purpose: "現在時刻と日付を確認するための表示です。" },
+    ],
+  },
+  {
+    slug: "home-lesson",
+    title: "Student Lesson Page",
+    tag: "lesson",
+    imageName: "screen-lesson-home-session.png",
+    description:
+      "生徒側が Lesson session に参加した画面です。Teacher と異なり、Viewer / My Page など生徒向けの操作が表示されます。",
+    imageDescription:
+      "Lesson ヘッダー、生徒向け同期表示、Student Card コンテンツが表示されます。",
+    items: [
+      { id: "school-name", label: "学校名表示", purpose: "授業対象の学校名を確認するための表示です。" },
+      { id: "class-name", label: "クラス名表示", purpose: "授業対象のクラス名を確認するための表示です。" },
+      { id: "level-color", label: "レベル色表示", purpose: "現在のレッスン色を確認するための表示です。" },
+      { id: "unit-button", label: "UNIT ボタン", purpose: "表示中の Unit を確認するための表示です。" },
+      { id: "section", label: "SECTION 表示", purpose: "現在の SECTION を確認するための表示です。" },
+      { id: "menu-button", label: "メニューボタン", purpose: "Exit Lesson などの Lesson メニューを開くための操作です。" },
+      { id: "students-toggle", label: "StudentsPanel 表示切替", purpose: "StudentsPanel の開閉を切り替える操作です。" },
+      { id: "students-level", label: "StudentsPanel モード切替", purpose: "StudentsPanel の表示モードを変更する操作です。" },
+      { id: "viewer-status", label: "Viewer / My Page 操作", purpose: "生徒側の同期状態表示や My Page 導線を確認するための操作です。" },
+      { id: "datetime", label: "日時表示", purpose: "現在時刻と日付を確認するための表示です。" },
+    ],
+  },
+  {
+    slug: "teacher-panel-none-md",
+    title: "Teacher StudentsPanel Hidden",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-panel-none-md.png",
+    description: "Teacher Lesson で StudentsPanel を閉じた状態です。",
+    imageDescription: "中央の教材領域を広く使うレイアウトです。",
+    items: [{ id: "student-card", label: "中央コンテンツ", purpose: "StudentsPanel を閉じた状態で教材領域を確認するための表示です。" }],
+  },
+  {
+    slug: "teacher-panel-icon-md",
+    title: "Teacher StudentsPanel Icon",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-panel-icon-md.png",
+    description: "Teacher Lesson の md+ 画面で StudentsPanel を icon 表示にした状態です。",
+    imageDescription: "生徒アイコン列と加点・減点アイコンが表示されます。",
+    items: [
+      { id: "avatar-button", label: "生徒アイコン", purpose: "対象生徒を識別し、詳細カード表示の起点にするための操作です。" },
+      { id: "score-add", label: "加点アイコン", purpose: "その生徒の today score を加点するための操作です。" },
+      { id: "score-remove", label: "減点アイコン", purpose: "その生徒の today score を減点するための操作です。" },
+    ],
+  },
+  {
+    slug: "teacher-panel-icon-xs",
+    title: "Teacher StudentsPanel Icon XS",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-panel-icon-xs.png",
+    description: "Teacher Lesson の xs 画面で StudentsPanel を icon 表示にした状態です。",
+    imageDescription: "上部に折り返し配置された生徒アイコン列が表示されます。",
+    items: [{ id: "avatar-button", label: "生徒アイコン列", purpose: "xs 画面で折り返し表示される生徒アイコン列を確認するための表示です。" }],
+  },
+  {
+    slug: "teacher-panel-simple-md",
+    title: "Teacher StudentsPanel Simple",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-panel-simple-md.png",
+    description: "Teacher Lesson の md+ 画面で StudentsPanel を simple 表示にした状態です。",
+    imageDescription: "生徒ごとの simple card と today score 操作が表示されます。",
+    items: [
+      { id: "student-card", label: "Simple Card", purpose: "生徒ごとの概要情報を確認するためのカードです。" },
+      { id: "today-score", label: "Today Score 操作", purpose: "today score の表示と加減点を行うための操作です。" },
+    ],
+  },
+  {
+    slug: "teacher-panel-full-md",
+    title: "Teacher StudentsPanel Full",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-panel-full-md.png",
+    description: "Teacher Lesson の md+ 画面で StudentsPanel を full 表示にした状態です。",
+    imageDescription: "today / unit / total score を含む詳細カードが表示されます。",
+    items: [
+      { id: "student-card", label: "Full Card", purpose: "生徒ごとの詳細情報を確認するためのカードです。" },
+      { id: "today-score", label: "Today Score", purpose: "today score の表示と加減点を行うための操作です。" },
+      { id: "unit-total-score", label: "Unit / Total Score", purpose: "unit score と total score を確認するための表示です。" },
+    ],
+  },
+  {
+    slug: "teacher-panel-progress-md",
+    title: "Teacher StudentsPanel Progress",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-panel-progress-md.png",
+    description: "Teacher Lesson の md+ 画面で StudentsPanel を progress 表示にした状態です。",
+    imageDescription: "生徒ごとの progress card が表示されます。",
+    items: [
+      { id: "student-card", label: "Progress Card", purpose: "生徒ごとの progress / homework 情報を確認するためのカードです。" },
+    ],
+  },
+  {
+    slug: "teacher-content-vocabulary-particle",
+    title: "Vocabulary Particle Content",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-vocabulary-particle.png",
+    description: "Lesson content を Vocabulary Particle に切り替えた状態です。",
+    imageDescription: "slide mode と match mode を切り替えられる Vocabulary Particle コンテンツです。",
+    items: [
+      { id: "slide-mode", label: "Slide Mode", purpose: "Vocabulary Particle を slide 表示で学習するための操作です。" },
+      { id: "match-mode", label: "Match Mode", purpose: "Vocabulary Particle を match 表示へ切り替えるための操作です。" },
+    ],
+  },
+  {
+    slug: "teacher-content-games",
+    title: "Games Content",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-games.png",
+    description: "Lesson content を Games に切り替えた状態です。",
+    imageDescription: "ゲームセンターから個別ゲームへ進むためのコンテンツ一覧です。",
+    items: [{ id: "games-root", label: "Game Center", purpose: "利用可能なゲームを選択して切り替えるためのコンテンツ本体です。" }],
+  },
+  {
+    slug: "teacher-content-student-card-detail",
+    title: "Student Card Detail",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-student-card-detail.png",
+    description: "Student Card で裏面単体表示に入った状態です。",
+    imageDescription: "BACK ボタンが表示され、単体表示から元の画面へ戻れます。",
+    items: [
+      { id: "back-button", label: "BACK ボタン", purpose: "単体表示から元の Student Card 配置へ戻るための操作です。" },
+      { id: "detail-root", label: "単体表示コンテンツ", purpose: "選択した Student Card 詳細を拡大表示した状態です。" },
     ],
   },
 ];
@@ -418,6 +621,14 @@ const imageMarkdownPath = (imageName) =>
 
 const itemImageName = (pageSpec, item) =>
   `item-${pageSpec.tag}-${pageSpec.slug}-${toKebabCase(item.id)}.png`;
+
+const getPageSpec = (slug) => {
+  const pageSpec = pageSpecs.find((spec) => spec.slug === slug);
+  if (!pageSpec) {
+    throw new Error(`Unknown page spec: ${slug}`);
+  }
+  return pageSpec;
+};
 
 const ensureOutputDirs = async () => {
   await mkdir(imagesRoot, { recursive: true });
@@ -929,6 +1140,10 @@ ${itemSections}
 
 const renderManualIndex = ({ version, lang }) => {
   const locale = localeConfig[lang];
+  const pageLinks = pageSpecs
+    .map((pageSpec) => getLocalizedPageSpec(pageSpec, lang))
+    .map((pageSpec) => `- [${pageSpec.title}](./${pageSpec.slug}.md)`)
+    .join("\n");
   return `---
 title: ${locale.manualIndexTitle}
 lang: ${locale.frontMatterLang}
@@ -938,17 +1153,7 @@ version: ${version}
 
 # ${locale.manualIndexHeading}
 
-- [Setup Device](./setup-device.md)
-- [Login](./login.md)
-- [Home Route First Screen](./home-switch-student.md)
-- [Home Startup](./home-startup.md)
-- [My Page](./home-mypage.md)
-- [Avatar](./home-avatar.md)
-- [Teacher Class Selection](./teacher-select-class.md)
-- [Teacher Startup](./teacher-startup.md)
-- [Shared Class Selection](./shared-select-class.md)
-- [Shared Student Selection](./shared-select-student.md)
-- [Shared Startup](./shared-startup.md)
+${pageLinks}
 `;
 };
 
@@ -993,15 +1198,28 @@ const waitForPageReady = async (page) => {
   await page.waitForTimeout(1500);
 };
 
+const waitForNoLoadingText = async (page) => {
+  await page.waitForFunction(() => {
+    const text = document.body.innerText.replace(/\s+/g, " ").trim();
+    return !/Loading/i.test(text);
+  });
+};
+
+const waitForStudentCardRendered = async (page) => {
+  await page.getByTestId("student-card-content-root").waitFor();
+  await page.waitForFunction(() => {
+    const root = document.querySelector('[data-testid="student-card-content-root"]');
+    if (!root) {
+      return false;
+    }
+
+    const images = root.querySelectorAll('img[alt="front"], img[alt="back"]');
+    return images.length >= 2;
+  });
+};
+
 const waitForCaptureReady = async (page, slug) => {
   const body = page.locator("body");
-
-  const waitForNoLoading = async () => {
-    await page.waitForFunction(() => {
-      const text = document.body.innerText.replace(/\s+/g, " ").trim();
-      return !/Loading/i.test(text);
-    });
-  };
 
   const readyMap = {
     "setup-device": async () => {
@@ -1020,17 +1238,18 @@ const waitForCaptureReady = async (page, slug) => {
     "home-startup": async () => {
       await page.waitForURL(/\/home\/lesson$/);
       await page.getByTestId("lesson-header-menu-button").waitFor();
-      await waitForNoLoading();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
     },
     "home-mypage": async () => {
       await page.waitForURL(/\/mypage$/);
       await page.waitForFunction(() => /Ace Student/i.test(document.body.innerText));
-      await waitForNoLoading();
+      await waitForNoLoadingText(page);
     },
     "home-avatar": async () => {
       await page.waitForURL(/\/avatar$/);
       await page.waitForFunction(() => /Avatar Name/i.test(document.body.innerText));
-      await waitForNoLoading();
+      await waitForNoLoadingText(page);
     },
     "teacher-select-class": async () => {
       await page.waitForURL(/\/select-class$/);
@@ -1038,12 +1257,20 @@ const waitForCaptureReady = async (page, slug) => {
         const text = document.body.innerText.replace(/\s+/g, " ").trim();
         return /Select Class/i.test(text) && /ACE DEMO SCHOOL/i.test(text) && !/Loading/i.test(text);
       });
-      await page.getByRole("button", { name: /^Select$/i }).waitFor();
+      const selectButton = page.getByRole("button", { name: /^Select$/i });
+      await selectButton.waitFor();
+      await page.waitForFunction(() => {
+        const button = Array.from(document.querySelectorAll("button")).find(
+          (node) => /select/i.test(node.textContent ?? ""),
+        );
+        return !!button && !button.hasAttribute("disabled");
+      });
     },
     "teacher-startup": async () => {
       await page.waitForURL(/\/teacher\/lesson$/);
       await page.getByTestId("lesson-header-menu-button").waitFor();
-      await waitForNoLoading();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
     },
     "shared-select-class": async () => {
       await page.waitForURL(/\/select-class$/);
@@ -1051,7 +1278,14 @@ const waitForCaptureReady = async (page, slug) => {
         const text = document.body.innerText.replace(/\s+/g, " ").trim();
         return /Select Class/i.test(text) && /ACE DEMO SCHOOL/i.test(text) && !/Loading/i.test(text);
       });
-      await page.getByRole("button", { name: /^Select$/i }).waitFor();
+      const selectButton = page.getByRole("button", { name: /^Select$/i });
+      await selectButton.waitFor();
+      await page.waitForFunction(() => {
+        const button = Array.from(document.querySelectorAll("button")).find(
+          (node) => /select/i.test(node.textContent ?? ""),
+        );
+        return !!button && !button.hasAttribute("disabled");
+      });
     },
     "shared-select-student": async () => {
       await page.waitForURL(/\/select-student$/);
@@ -1064,7 +1298,76 @@ const waitForCaptureReady = async (page, slug) => {
     "shared-startup": async () => {
       await page.waitForURL(/\/shared\/lesson$/);
       await page.getByTestId("lesson-header-menu-button").waitFor();
-      await waitForNoLoading();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "teacher-lesson": async () => {
+      await page.waitForFunction(() =>
+        /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "home-lesson": async () => {
+      await page.waitForFunction(() =>
+        /\/home\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "teacher-panel-none-md": async () => {
+      await page.getByTestId("lesson-header").waitFor();
+      await page.getByTestId("student-card-content-root").waitFor();
+    },
+    "teacher-panel-icon-md": async () => {
+      await page.getByTestId("lesson-shell-students").waitFor();
+      await page.getByTestId("student-badge-student-ace-001-avatar-button").waitFor();
+    },
+    "teacher-panel-icon-xs": async () => {
+      await page.getByTestId("lesson-shell-students").waitFor();
+      await page.getByTestId("student-badge-student-ace-001-avatar-button").waitFor();
+    },
+    "teacher-panel-simple-md": async () => {
+      await page.getByTestId("student-student-ace-001-card").waitFor();
+    },
+    "teacher-panel-full-md": async () => {
+      await page.getByTestId("student-student-ace-001-total-score-input").waitFor();
+    },
+    "teacher-panel-progress-md": async () => {
+      await page.getByTestId("student-student-ace-001-card").waitFor();
+      await page.waitForFunction(() => /Progress|Homework/i.test(document.body.innerText));
+    },
+    "teacher-content-vocabulary-particle": async () => {
+      await page.waitForFunction(() =>
+        /\/teacher\/lesson\/[^/]+\/session\/content\/vocabulary-particle(?:\?.*)?$/.test(
+          window.location.pathname + window.location.search,
+        ),
+      );
+      await page.waitForFunction(() => {
+        const text = document.body.innerText.replace(/\s+/g, " ").trim();
+        return /Vocabulary Particle/i.test(text) && /Slide/i.test(text) && /Match/i.test(text);
+      });
+    },
+    "teacher-content-games": async () => {
+      await page.waitForFunction(() =>
+        /\/teacher\/lesson\/[^/]+\/session\/content\/games(?:\?.*)?$/.test(
+          window.location.pathname + window.location.search,
+        ),
+      );
+      await page.waitForFunction(() => {
+        const text = document.body.innerText.replace(/\s+/g, " ").trim();
+        return /Games/i.test(text) && /HANGMAN|LETTER DROP|SNAKE/i.test(text);
+      });
+    },
+    "teacher-content-student-card-detail": async () => {
+      await page.getByRole("button", { name: /^BACK$/i }).waitFor();
+      await waitForNoLoadingText(page);
     },
   };
 
@@ -1074,7 +1377,7 @@ const waitForCaptureReady = async (page, slug) => {
   }
 
   await body.waitFor();
-  await waitForNoLoading();
+  await waitForNoLoadingText(page);
 };
 
 const capturePage = async ({ page, pageSpec, report }) => {
@@ -1138,17 +1441,21 @@ const getItemLocator = async (page, slug, itemId) => {
       "start-button": byRole("button", /^Start$/i),
     },
     "home-startup": {
-      "lesson-header": page.getByTestId("lesson-header").first(),
+      "school-name": page.getByTestId("lesson-header-school-name").first(),
+      "class-name": page.getByTestId("lesson-header-class-name").first(),
+      "level-color": page.getByTestId("lesson-header-level-color").first(),
+      "unit-button": page.getByTestId("lesson-header-unit").first(),
+      "student-status": page.getByTestId("lesson-header-homework-student-status").first(),
       "menu-button": page.getByTestId("lesson-header-menu-button").first(),
-      "content-list": byTextBlock(/Student Card/i),
+      "student-card": page.getByTestId("student-card-content-root").first(),
     },
     "home-mypage": {
       "profile-header": byTextBlock(/Ace Student/i),
       "next-class": byTextBlock(/Next Class/i),
-      "progress-panel": byTextBlock(/Confirm Progress Unit/i),
+      "progress-panel": page.getByRole("table").first(),
     },
     "home-avatar": {
-      "avatar-header": byTextBlock(/Ace Student Coins/i),
+      "avatar-header": byTextBlock(/Coins/i),
       "preview-panel": byTextBlock(/Avatar Name/i),
       "filter-panel": byTextBlock(/Ownership/i),
     },
@@ -1158,9 +1465,14 @@ const getItemLocator = async (page, slug, itemId) => {
       "select-button": byRole("button", /^Select$/i),
     },
     "teacher-startup": {
-      "lesson-header": page.getByTestId("lesson-header").first(),
+      "school-name": page.getByTestId("lesson-header-school-name").first(),
+      "class-name": page.getByTestId("lesson-header-class-name").first(),
+      "level-color": page.getByTestId("lesson-header-level-color").first(),
+      "unit-button": page.getByTestId("lesson-header-unit").first(),
+      "students-toggle": page.getByTestId("lesson-header-students-toggle").first(),
+      "students-level": page.getByLabel("CHANGE STUDENTS LEVEL").first(),
       "menu-button": page.getByTestId("lesson-header-menu-button").first(),
-      "student-list": byTextBlock(/ACE STUDENT/i),
+      "student-card": page.getByTestId("student-card-content-root").first(),
     },
     "shared-select-class": {
       "teacher-name": byTextBlock(/先生/i),
@@ -1173,13 +1485,264 @@ const getItemLocator = async (page, slug, itemId) => {
       "select-button": byRole("button", /^Select$/i),
     },
     "shared-startup": {
-      "lesson-header": page.getByTestId("lesson-header").first(),
+      "school-name": page.getByTestId("lesson-header-school-name").first(),
+      "class-name": page.getByTestId("lesson-header-class-name").first(),
+      "level-color": page.getByTestId("lesson-header-level-color").first(),
+      "unit-button": page.getByTestId("lesson-header-unit").first(),
       "menu-button": page.getByTestId("lesson-header-menu-button").first(),
-      "content-list": byTextBlock(/Student Card/i),
+      "student-card": page.getByTestId("student-card-content-root").first(),
+    },
+    "teacher-lesson": {
+      "school-name": page.getByTestId("lesson-header-school-name").first(),
+      "class-name": page.getByTestId("lesson-header-class-name").first(),
+      "level-color": page.getByTestId("lesson-header-level-color").first(),
+      "unit-button": page.getByTestId("lesson-header-unit").first(),
+      section: page.getByTestId("lesson-header-section-value").first(),
+      "menu-button": page.getByTestId("lesson-header-menu-button").first(),
+      "students-toggle": page.getByTestId("lesson-header-students-toggle").first(),
+      "students-level": page.getByLabel("CHANGE STUDENTS LEVEL").first(),
+      "sync-mode": page.getByTestId("lesson-header").getByRole("button", { name: /Play|Study/i }).first(),
+      datetime: page.getByTestId("lesson-header-datetime").first(),
+      "student-card": page.getByTestId("student-card-content-root").first(),
+    },
+    "home-lesson": {
+      "school-name": page.getByTestId("lesson-header-school-name").first(),
+      "class-name": page.getByTestId("lesson-header-class-name").first(),
+      "level-color": page.getByTestId("lesson-header-level-color").first(),
+      "unit-button": page.getByTestId("lesson-header-unit").first(),
+      section: page.getByTestId("lesson-header-section-value").first(),
+      "menu-button": page.getByTestId("lesson-header-menu-button").first(),
+      "students-toggle": page.getByTestId("lesson-header-students-toggle").first(),
+      "students-level": page.getByLabel("CHANGE STUDENTS LEVEL").first(),
+      "viewer-status": page.getByTestId("lesson-header").getByRole("button", { name: /Viewer|OPEN MY PAGE/i }).first(),
+      datetime: page.getByTestId("lesson-header-datetime").first(),
+      "student-card": page.getByTestId("student-card-content-root").first(),
+    },
+    "teacher-panel-none-md": {
+      "student-card": page.getByTestId("student-card-content-root").first(),
+    },
+    "teacher-panel-icon-md": {
+      "avatar-button": page.getByTestId("student-badge-student-ace-001-avatar-button").first(),
+      "score-add": page.getByTestId("student-badge-student-ace-001-add-button").first(),
+      "score-remove": page.getByTestId("student-badge-student-ace-001-remove-button").first(),
+    },
+    "teacher-panel-icon-xs": {
+      "avatar-button": page.getByTestId("student-badge-student-ace-001-avatar-button").first(),
+    },
+    "teacher-panel-simple-md": {
+      "student-card": page.getByTestId("student-student-ace-001-card").first(),
+      "today-score": page.getByTestId("student-student-ace-001-today-score-input").first(),
+    },
+    "teacher-panel-full-md": {
+      "student-card": page.getByTestId("student-student-ace-001-card").first(),
+      "today-score": page.getByTestId("student-student-ace-001-today-score-input").first(),
+      "unit-total-score": page.getByTestId("student-student-ace-001-total-score-input").first(),
+    },
+    "teacher-panel-progress-md": {
+      "student-card": page.getByTestId("student-student-ace-001-card").first(),
+    },
+    "teacher-content-vocabulary-particle": {
+      "slide-mode": byTextBlock(/^Slide$/i),
+      "match-mode": byTextBlock(/^Match$/i),
+    },
+    "teacher-content-games": {
+      "games-root": byTextBlock(/HANGMAN|LETTER DROP|SNAKE/i),
+    },
+    "teacher-content-student-card-detail": {
+      "back-button": page.getByRole("button", { name: /^BACK$/i }).first(),
+      "detail-root": page.getByTestId("student-card-content-root").first(),
     },
   };
 
   return map[slug]?.[itemId] ?? null;
+};
+
+const extractLessonId = (url) => url.match(/lesson\/([^/]+)\/session/)?.[1] ?? null;
+
+const openStartupMenuAction = async (page, actionLabel) => {
+  await page.getByTestId("lesson-header-menu-button").click();
+  const menuAction = page.getByRole("button", { name: actionLabel });
+  await menuAction.waitFor();
+  await menuAction.click();
+};
+
+const confirmLessonEntry = async (page, actionLabel) => {
+  const confirmButton = page.getByRole("button", {
+    name: new RegExp(`^${actionLabel}$`, "i"),
+  });
+  await confirmButton.waitFor({ timeout: 30_000 });
+  await page.waitForFunction(
+    (label) => {
+      const button = Array.from(document.querySelectorAll("button")).find(
+        (node) => new RegExp(`^${label}$`, "i").test(node.textContent ?? ""),
+      );
+      return !!button && !button.hasAttribute("disabled");
+    },
+    actionLabel,
+  );
+  await confirmButton.click();
+};
+
+const findLessonEntryButton = (page, actionLabel) =>
+  page.getByRole("button", {
+    name: new RegExp(`^${actionLabel}$`, "i"),
+  });
+
+const expectSessionReady = async (page, mode) => {
+  await page.waitForURL(
+    new RegExp(`/${mode}/lesson/[^/]+/session(?:/content/[^/]+)?(?:\\?.*)?$`),
+    { timeout: 30_000 },
+  );
+  await page.getByTestId("lesson-header").waitFor({ timeout: 20_000 });
+  await page.getByTestId("student-card-content-root").waitFor({
+    timeout: 20_000,
+  });
+  await waitForNoLoadingText(page);
+};
+
+const waitUntilHomeJoinReady = async (page) => {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await openStartupMenuAction(page, "Enter Lesson");
+    const joinButton = findLessonEntryButton(page, "Join");
+    await joinButton.waitFor({ timeout: 30_000 });
+
+    if (await joinButton.isEnabled()) {
+      return;
+    }
+
+    await page.getByRole("button", { name: "Close Enter Lesson" }).click();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForURL(/\/home\/lesson$/, { timeout: 20_000 });
+    await waitForPageReady(page);
+  }
+
+  await findLessonEntryButton(page, "Join").waitFor({ timeout: 30_000 });
+};
+
+const enterHomeLessonSession = async (page) => {
+  await waitUntilHomeJoinReady(page);
+  await confirmLessonEntry(page, "Join");
+  await expectSessionReady(page, "home");
+};
+
+const ensureTeacherSession = async (page) => {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (
+      /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?(?:\?.*)?$/.test(
+        page.url(),
+      )
+    ) {
+      break;
+    }
+
+    const startButton = findLessonEntryButton(page, "Start");
+    if (
+      (await startButton.isVisible().catch(() => false)) &&
+      (await startButton.isEnabled().catch(() => false))
+    ) {
+      await confirmLessonEntry(page, "Start");
+    } else {
+      if (/\/teacher\/lesson$/.test(page.url())) {
+        await page.getByTestId("lesson-header-menu-button").click();
+        const joinAction = page.getByRole("button", { name: "Join Lesson" });
+        if (await joinAction.isVisible().catch(() => false)) {
+          await joinAction.click();
+        } else {
+          await page.getByRole("button", { name: "Start Lesson" }).click();
+        }
+      }
+      const joinButton = findLessonEntryButton(page, "Join");
+      if (
+        (await joinButton.isVisible().catch(() => false)) &&
+        (await joinButton.isEnabled().catch(() => false))
+      ) {
+        await confirmLessonEntry(page, "Join");
+      }
+    }
+
+    if (
+      /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?(?:\?.*)?$/.test(
+        page.url(),
+      )
+    ) {
+      break;
+    }
+
+    await page.waitForTimeout(2_000);
+  }
+
+  await expectSessionReady(page, "teacher");
+};
+
+const ensureHomeSessionByLessonId = async (page, lessonId) => {
+  await page.goto(`${baseUrl}/home/lesson/${lessonId}/session?mode=appsync`, {
+    waitUntil: "domcontentloaded",
+  });
+  await waitForPageReady(page);
+  await waitForCaptureReady(page, "home-lesson");
+};
+
+const setTeacherStudentsPanelState = async (page, { open, level }) => {
+  const toggleButton = page.getByLabel("TOGGLE STUDENTS");
+  const levelButton = page.getByLabel("CHANGE STUDENTS LEVEL");
+  const levelOrder = ["icon", "simple", "full", "progress"];
+
+  const isOpen = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="lesson-shell-students"]');
+    return !!panel && getComputedStyle(panel).transform !== "matrix(1, 0, 0, 1, 0, -1130)";
+  }).catch(() => true);
+
+  if (open !== isOpen) {
+    await toggleButton.click();
+    await page.waitForTimeout(500);
+  }
+
+  if (!open || !level) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const matched = await page.evaluate((targetLevel) => {
+      const cards = Array.from(document.querySelectorAll("[data-testid]")).map(
+        (node) => node.getAttribute("data-testid") ?? "",
+      );
+      if (targetLevel === "icon") {
+        return cards.some((value) => value.includes("student-badge-"));
+      }
+      if (targetLevel === "simple") {
+        return cards.some((value) => value.includes("today-score-input")) &&
+          !cards.some((value) => value.includes("total-score-input"));
+      }
+      if (targetLevel === "full") {
+        return cards.some((value) => value.includes("total-score-input"));
+      }
+      if (targetLevel === "progress") {
+        return cards.some((value) => value.includes("student-student-")) &&
+          !cards.some((value) => value.includes("today-score-input"));
+      }
+      return false;
+    }, level);
+
+    if (matched) {
+      return;
+    }
+
+    await levelButton.click();
+    await page.waitForTimeout(700);
+  }
+
+  throw new Error(`Failed to switch StudentsPanel to ${level}`);
+};
+
+const openStudentCardDetail = async (page) => {
+  const backImage = page.locator('img[alt="back"]').first();
+  await backImage.waitFor();
+  const box = await backImage.boundingBox();
+  if (!box) {
+    throw new Error("Student card back image bounding box not found");
+  }
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.getByRole("button", { name: /^BACK$/i }).waitFor();
 };
 
 const loginAs = async (page, email, gotoPath) => {
@@ -1189,6 +1752,15 @@ const loginAs = async (page, email, gotoPath) => {
     await page.locator('input[type="email"]').fill(email);
     await page.locator('input[type="password"]').fill(password);
     await page.locator('button[type="submit"]').click();
+    const postLoginUrlMap = {
+      "/teacher": /\/select-class$|\/teacher\/lesson$/,
+      "/home": /\/switch-student$|\/home\/lesson$/,
+      "/shared": /\/select-class$|\/select-student$|\/shared\/lesson$/,
+    };
+    const postLoginUrl = postLoginUrlMap[gotoPath];
+    if (postLoginUrl) {
+      await page.waitForURL(postLoginUrl, { timeout: 30_000 });
+    }
     await waitForPageReady(page);
   }
 };
@@ -1202,7 +1774,7 @@ const parentFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "login"),
+      pageSpec: getPageSpec("login"),
       report,
     });
   });
@@ -1214,7 +1786,7 @@ const parentFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "home-switch-student"),
+      pageSpec: getPageSpec("home-switch-student"),
       report,
     });
   });
@@ -1224,7 +1796,7 @@ const parentFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "setup-device"),
+      pageSpec: getPageSpec("setup-device"),
       report,
     });
   });
@@ -1236,7 +1808,7 @@ const parentFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "home-startup"),
+      pageSpec: getPageSpec("home-startup"),
       report,
     });
   });
@@ -1246,7 +1818,7 @@ const parentFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "home-mypage"),
+      pageSpec: getPageSpec("home-mypage"),
       report,
     });
   });
@@ -1256,7 +1828,7 @@ const parentFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "home-avatar"),
+      pageSpec: getPageSpec("home-avatar"),
       report,
     });
   });
@@ -1272,7 +1844,7 @@ const teacherFlow = async (browser, report) => {
     await loginAs(page, teacherEmail, "/teacher");
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "teacher-select-class"),
+      pageSpec: getPageSpec("teacher-select-class"),
       report,
     });
   });
@@ -1282,7 +1854,7 @@ const teacherFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "teacher-startup"),
+      pageSpec: getPageSpec("teacher-startup"),
       report,
     });
   });
@@ -1298,7 +1870,7 @@ const sharedFlow = async (browser, report) => {
     await loginAs(page, teacherEmail, "/shared");
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "shared-select-class"),
+      pageSpec: getPageSpec("shared-select-class"),
       report,
     });
   });
@@ -1308,7 +1880,7 @@ const sharedFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "shared-select-student"),
+      pageSpec: getPageSpec("shared-select-student"),
       report,
     });
   });
@@ -1318,12 +1890,164 @@ const sharedFlow = async (browser, report) => {
     await waitForPageReady(page);
     await capturePage({
       page,
-      pageSpec: pageSpecs.find((spec) => spec.slug === "shared-startup"),
+      pageSpec: getPageSpec("shared-startup"),
       report,
     });
   });
 
   await context.close();
+};
+
+const lessonFlow = async (browser, report) => {
+  const teacherContext = await browser.newContext({
+    viewport: { width: 1440, height: 1400 },
+  });
+  const homeContext = await browser.newContext({
+    viewport: { width: 1440, height: 1400 },
+  });
+  const teacherPage = await teacherContext.newPage();
+  const homePage = await homeContext.newPage();
+
+  let lessonId = null;
+
+  await runStep(report, "lesson:teacher-session", async () => {
+    await loginAs(teacherPage, teacherEmail, "/teacher");
+    if (/\/select-class$/.test(teacherPage.url())) {
+      await waitForCaptureReady(teacherPage, "teacher-select-class");
+      await teacherPage.getByRole("button", { name: /^Select$/i }).click();
+      await waitForPageReady(teacherPage);
+    }
+    await ensureTeacherSession(teacherPage);
+    lessonId = extractLessonId(teacherPage.url());
+    await capturePage({
+      page: teacherPage,
+      pageSpec: getPageSpec("teacher-lesson"),
+      report,
+    });
+  });
+
+  if (lessonId) {
+    await runStep(report, "lesson:home-session", async () => {
+      await loginAs(homePage, parentEmail, "/home");
+      if (/\/switch-student$/.test(homePage.url())) {
+        await homePage.getByRole("button", { name: /^Start$/i }).click();
+        await waitForPageReady(homePage);
+      }
+      await enterHomeLessonSession(homePage);
+      await capturePage({
+        page: homePage,
+        pageSpec: getPageSpec("home-lesson"),
+        report,
+      });
+    });
+
+    await runStep(report, "lesson:teacher-panel-md", async () => {
+      await teacherPage.goto(
+        `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await waitForPageReady(teacherPage);
+      await setTeacherStudentsPanelState(teacherPage, { open: false });
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-panel-none-md"),
+        report,
+      });
+
+      await setTeacherStudentsPanelState(teacherPage, { open: true, level: "icon" });
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-panel-icon-md"),
+        report,
+      });
+
+      await setTeacherStudentsPanelState(teacherPage, { open: true, level: "simple" });
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-panel-simple-md"),
+        report,
+      });
+
+      await setTeacherStudentsPanelState(teacherPage, { open: true, level: "full" });
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-panel-full-md"),
+        report,
+      });
+
+      await setTeacherStudentsPanelState(teacherPage, { open: true, level: "progress" });
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-panel-progress-md"),
+        report,
+      });
+    });
+
+    await runStep(report, "lesson:teacher-panel-xs", async () => {
+      const xsContext = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+      });
+      const xsPage = await xsContext.newPage();
+      try {
+        await loginAs(xsPage, teacherEmail, "/teacher");
+        await xsPage.goto(
+          `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
+          { waitUntil: "domcontentloaded" },
+        );
+        await waitForPageReady(xsPage);
+        await setTeacherStudentsPanelState(xsPage, { open: true, level: "icon" });
+        await capturePage({
+          page: xsPage,
+          pageSpec: getPageSpec("teacher-panel-icon-xs"),
+          report,
+        });
+      } finally {
+        await xsContext.close();
+      }
+    });
+
+    await runStep(report, "lesson:teacher-vocabulary-particle", async () => {
+      await teacherPage.goto(
+        `${baseUrl}/teacher/lesson/${lessonId}/session/content/vocabulary-particle?mode=appsync`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await waitForPageReady(teacherPage);
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-content-vocabulary-particle"),
+        report,
+      });
+    });
+
+    await runStep(report, "lesson:teacher-games", async () => {
+      await teacherPage.goto(
+        `${baseUrl}/teacher/lesson/${lessonId}/session/content/games?mode=appsync`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await waitForPageReady(teacherPage);
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-content-games"),
+        report,
+      });
+    });
+
+    await runStep(report, "lesson:teacher-student-card-detail", async () => {
+      await teacherPage.goto(
+        `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await waitForPageReady(teacherPage);
+      await openStudentCardDetail(teacherPage);
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-content-student-card-detail"),
+        report,
+      });
+    });
+  }
+
+  await Promise.allSettled([teacherContext.close(), homeContext.close()]);
 };
 
 const generateDocs = async () => {
@@ -1344,6 +2068,7 @@ const generateDocs = async () => {
     await parentFlow(browser, report);
     await teacherFlow(browser, report);
     await sharedFlow(browser, report);
+    await lessonFlow(browser, report);
   } finally {
     await browser.close();
   }

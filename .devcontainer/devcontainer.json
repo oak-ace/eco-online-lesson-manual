@@ -29,7 +29,8 @@
 		"vscode": {
 			"extensions": [
 				"openai.chatgpt",
-				"mhutchie.git-graph"
+				"mhutchie.git-graph",
+				"github.vscode-github-actions"
 			]
 		}
 	},
