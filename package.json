@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "generate:manual": "node tools/manual-capture/generate-initial-manual.mjs"
+    "generate:manual": "node tools/manual-capture/generate-initial-manual.mjs",
+    "setup:image-fixtures": "node tools/manual-capture/setup-dev-image-fixtures.mjs"
   },
   "devDependencies": {
     "playwright": "1.58.2"

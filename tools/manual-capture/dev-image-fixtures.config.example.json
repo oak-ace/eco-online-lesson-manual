@@ -1,0 +1,30 @@
+{
+  "baseUrl": "https://local.eco-online.site:8080",
+  "schoolId": "school-ace-001",
+  "prefix": "IMGFIX",
+  "teacher": {
+    "email": "teacher@ace-software.com"
+  },
+  "parents": [
+    {
+      "key": "parent-a",
+      "email": "parent-a@example.com"
+    },
+    {
+      "key": "parent-b",
+      "email": "parent-b@example.com"
+    },
+    {
+      "key": "parent-c",
+      "email": "parent-c@example.com"
+    },
+    {
+      "key": "parent-d",
+      "email": "parent-d@example.com"
+    },
+    {
+      "key": "parent-e",
+      "email": "parent-e@example.com"
+    }
+  ]
+}
