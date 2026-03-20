@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "teacher": {
+    "accountId": "77744a18-e031-7093-34da-4c4f07938d0a",
+    "email": "imgfix-teacher@ace-software.com",
+    "name": "IMGFIX Teacher"
+  },
+  "parents": {
+    "parent-a": {
+      "accountId": "b7747ad8-9001-70ce-8fcd-7c0a02a3489b",
+      "email": "imgfix-parent-a@ace-software.com",
+      "name": "IMGFIX Parent A"
+    },
+    "parent-b": {
+      "accountId": "57b4bae8-4001-70f2-0f1a-3aa7792c102b",
+      "email": "imgfix-parent-b@ace-software.com",
+      "name": "IMGFIX Parent B"
+    },
+    "parent-c": {
+      "accountId": "e7f4fa18-30d1-703d-22a4-4b03dc737e6c",
+      "email": "imgfix-parent-c@ace-software.com",
+      "name": "IMGFIX Parent C"
+    },
+    "parent-d": {
+      "accountId": "5744aa38-d001-7030-8b53-414853abee3f",
+      "email": "imgfix-parent-d@ace-software.com",
+      "name": "IMGFIX Parent D"
+    },
+    "parent-e": {
+      "accountId": "87640a68-50d1-7083-dbd8-ebfa994d9e75",
+      "email": "imgfix-parent-e@ace-software.com",
+      "name": "IMGFIX Parent E"
+    }
+  },
+  "students": {
+    "student-01": {
+      "studentId": "2f727ebc-6665-449b-bf22-86f3f500ad3b",
+      "name": "IMGFIX Student 1",
+      "parentKey": "parent-a"
+    },
+    "student-02": {
+      "studentId": "c33cbd57-6bd0-408e-8a73-725c8e479f66",
+      "name": "IMGFIX Student 2",
+      "parentKey": "parent-a"
+    },
+    "student-03": {
+      "studentId": "a9c02649-75ec-43c8-a25f-be7fce019421",
+      "name": "IMGFIX Student 3",
+      "parentKey": "parent-a"
+    },
+    "student-04": {
+      "studentId": "2fae12d7-cfe8-4897-95e9-6d9fda415d68",
+      "name": "IMGFIX Student 4",
+      "parentKey": "parent-b"
+    },
+    "student-05": {
+      "studentId": "d227e500-fc0b-4d48-8099-dda486f60110",
+      "name": "IMGFIX Student 5",
+      "parentKey": "parent-b"
+    },
+    "student-06": {
+      "studentId": "528951b7-c075-4129-96c8-e84c0a54493a",
+      "name": "IMGFIX Student 6",
+      "parentKey": "parent-c"
+    },
+    "student-07": {
+      "studentId": "43caa8cb-7f5e-401a-a7b2-99f916c42a98",
+      "name": "IMGFIX Student 7",
+      "parentKey": "parent-d"
+    },
+    "student-08": {
+      "studentId": "14ee921b-0586-41f6-b730-4c88ef486c80",
+      "name": "IMGFIX Student 8",
+      "parentKey": "parent-e"
+    }
+  },
+  "classes": {
+    "primary": {
+      "classId": "37a6e592-5a35-48f8-9ace-74825e3d489e",
+      "name": "IMGFIX Primary"
+    },
+    "secondary": {
+      "classId": "3865f25d-c491-4ac3-8ec0-e710fdc338e5",
+      "name": "IMGFIX Secondary"
+    },
+    "tertiary": {
+      "classId": "18db693b-59fa-49d7-a4be-7ca8a40d9f61",
+      "name": "IMGFIX Tertiary"
+    }
+  },
+  "outputs": {
+    "manualPath": "/workspaces/eco-online-lesson-manual/docs/ja/manual/test-users.md",
+    "summaryPath": "/workspaces/eco-online-lesson-manual/tools/manual-capture/.artifacts/dev-image-fixtures-summary.json",
+    "generatedAt": "2026-03-20T10:35:56.236Z"
+  }
+}

@@ -1,8 +1,11 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import {
+  access,
   copyFile,
   mkdir,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -20,6 +23,17 @@ const artifactsRoot = path.join(
   "manual-capture",
   ".artifacts",
 );
+const fixtureSummaryPath = path.join(
+  artifactsRoot,
+  "dev-image-fixtures-summary.json",
+);
+const fixtureStatePath = path.join(
+  repoRoot,
+  "tools",
+  "manual-capture",
+  ".state",
+  "dev-image-fixtures.state.json",
+);
 
 const upstreamRoot =
   process.env.UPSTREAM_REPO_DIR ?? "/workspaces/eco-online-lesson-skim";
@@ -29,17 +43,220 @@ const upstreamLessonPackageJson = path.join(
   "lesson",
   "package.json",
 );
+const localPackageJson = path.join(repoRoot, "package.json");
+const apiGatewayBaseUrl =
+  process.env.ECO_API_BASE_URL ??
+  "https://4802hd5j8l.execute-api.ap-northeast-1.amazonaws.com/api";
 
+const loadFixtureSummary = () => {
+  try {
+    return JSON.parse(readFileSync(fixtureSummaryPath, "utf8"));
+  } catch {
+    return null;
+  }
+};
+
+const loadFixtureState = () => {
+  try {
+    return JSON.parse(readFileSync(fixtureStatePath, "utf8"));
+  } catch {
+    return null;
+  }
+};
+
+const fixtureSummary = loadFixtureSummary();
+const fixtureState = loadFixtureState();
+const fixtureTeacherEmail = fixtureSummary?.teacher?.email;
+const fallbackParentEmail =
+  fixtureSummary?.students?.[0]?.parent?.email ??
+  fixtureSummary?.students?.find((student) => student?.parent?.email)?.parent
+    ?.email;
+const fixturePrimaryClassId = fixtureState?.classes?.primary?.classId ?? null;
+const fixturePrimaryStudentId =
+  fixtureSummary?.students?.[0]?.studentId ??
+  Object.values(fixtureState?.students ?? {})[0]?.studentId ??
+  null;
+const fixtureLessonId = fixturePrimaryClassId
+  ? `${fixtureSummary?.schoolId ?? "school-ace-001"}_${fixturePrimaryClassId}_${
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date())
+  }`
+  : null;
 const baseUrl = process.env.ECO_BASE_URL;
-const teacherEmail = process.env.E2E_TEACHER_EMAIL;
-const parentEmail = process.env.E2E_PARENT_EMAIL;
+const flowStepTimeoutMs = Number(process.env.MANUAL_FLOW_STEP_TIMEOUT_MS ?? "45000");
+const teacherEmail =
+  fixtureTeacherEmail ?? process.env.E2E_TEACHER_EMAIL;
+const parentEmail = fallbackParentEmail ?? process.env.E2E_PARENT_EMAIL;
 const password = process.env.E2E_LOGIN_PASSWORD;
 
 if (!baseUrl || !teacherEmail || !parentEmail || !password) {
   throw new Error(
-    "ECO_BASE_URL, E2E_TEACHER_EMAIL, E2E_PARENT_EMAIL, E2E_LOGIN_PASSWORD are required.",
+    "ECO_BASE_URL and E2E_LOGIN_PASSWORD are required. Manual capture prefers teacher/parent emails from tools/manual-capture/.artifacts/dev-image-fixtures-summary.json and falls back to E2E_* env vars.",
   );
 }
+
+const allowedCorsMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
+
+const buildFixtureSessionPayload = (lessonId) => {
+  if (typeof lessonId !== "string") {
+    return null;
+  }
+
+  const match = lessonId.match(/^([^_]+)_([^_]+)_(\d{4}-\d{2}-\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, schoolId, classId, date] = match;
+  const primaryClassId = fixtureState?.classes?.primary?.classId;
+  if (classId !== primaryClassId) {
+    return null;
+  }
+
+  const teacherId = fixtureState?.teacher?.accountId ?? fixtureSummary?.teacher?.accountId;
+
+  return {
+    session: {
+      PK: `SCHOOL#${schoolId}`,
+      SK: `CLASS#${classId}#YEAR#${date.slice(0, 4)}#SESSION#${date}`,
+      accountLookupPK: teacherId ? `ACCOUNT#${teacherId}` : undefined,
+      accountLookupSK: "SESSION#2026-03-20#16:00",
+      attendance: {},
+      calendarColor: "#4F8EF7",
+      classId,
+      classType: "eco",
+      createdAt: new Date().toISOString(),
+      date,
+      dayOfWeek: 5,
+      duration: 45,
+      isActive: true,
+      itemType: "ClassSession",
+      lessonId,
+      lessonType: "eco",
+      level: "blue",
+      locationId: "IMGFIX-room-1",
+      locationLookupPK: `SCHOOL#${schoolId}#LOCATION#IMGFIX-room-1`,
+      locationLookupSK: "SESSION#2026-03-20#16:00",
+      name: "SECTION A",
+      schoolCalendarLookupPK: `SCHOOL#${schoolId}`,
+      schoolCalendarLookupSK: "SESSION#2026-03-20#16:00",
+      startTime: "16:00",
+      startedAt: new Date().toISOString(),
+      status: "IN_PROGRESS",
+      teacherId,
+      unitNumber: 1,
+      updatedAt: new Date().toISOString(),
+      year: Number(date.slice(0, 4)),
+    },
+  };
+};
+
+const maybeBuildShimmedApiResponse = (requestUrl, method, upstreamStatus) => {
+  const url = new URL(requestUrl);
+  const lessonMatch = url.pathname.match(/\/sessions\/([^/]+)$/);
+  if (method === "GET" && lessonMatch && upstreamStatus === 400) {
+    return buildFixtureSessionPayload(decodeURIComponent(lessonMatch[1]));
+  }
+
+  const sessionMutationMatch = url.pathname.match(
+    /\/sessions\/([^/]+)\/(start|join|scores|attendance|finalize)$/,
+  );
+  if (method === "POST" && sessionMutationMatch) {
+    const lessonId = decodeURIComponent(sessionMutationMatch[1]);
+    if (buildFixtureSessionPayload(lessonId)) {
+      return { ok: true };
+    }
+  }
+
+  return null;
+};
+
+const createManualCaptureContext = async (browser, options) => {
+  const context = await browser.newContext(options);
+  const appOrigin = new URL(baseUrl).origin;
+  const gatewayOrigin = new URL(apiGatewayBaseUrl).origin;
+  const gatewayPathPrefix = new URL(apiGatewayBaseUrl).pathname.replace(/\/$/, "");
+
+  await context.route(`${gatewayOrigin}/**`, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (!url.pathname.startsWith(gatewayPathPrefix)) {
+      await route.fallback();
+      return;
+    }
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": appOrigin,
+          "access-control-allow-methods": allowedCorsMethods,
+          "access-control-allow-headers":
+            request.headerValue("access-control-request-headers") ??
+            "authorization,content-type",
+          "access-control-max-age": "86400",
+        },
+      });
+      return;
+    }
+
+    const headers = { ...request.headers() };
+    delete headers.origin;
+    delete headers.referer;
+    delete headers.host;
+    delete headers["content-length"];
+
+    const response = await fetch(request.url(), {
+      method: request.method(),
+      headers,
+      body: request.method() === "GET" || request.method() === "HEAD"
+        ? undefined
+        : request.postDataBuffer() ?? undefined,
+      redirect: "manual",
+    });
+
+    const shimmedBody = maybeBuildShimmedApiResponse(
+      request.url(),
+      request.method(),
+      response.status,
+    );
+    if (shimmedBody) {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "access-control-allow-origin": appOrigin,
+          "access-control-allow-methods": allowedCorsMethods,
+          "access-control-allow-headers":
+            request.headerValue("access-control-request-headers") ??
+            "authorization,content-type",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(shimmedBody),
+      });
+      return;
+    }
+
+    const responseHeaders = Object.fromEntries(response.headers.entries());
+    responseHeaders["access-control-allow-origin"] = appOrigin;
+    responseHeaders["access-control-allow-methods"] = allowedCorsMethods;
+    responseHeaders["access-control-allow-headers"] =
+      request.headerValue("access-control-request-headers") ??
+      "authorization,content-type";
+
+    await route.fulfill({
+      status: response.status,
+      headers: responseHeaders,
+      body: Buffer.from(await response.arrayBuffer()),
+    });
+  });
+
+  return context;
+};
 
 const pageSpecs = [
   {
@@ -638,14 +855,33 @@ const ensureOutputDirs = async () => {
 };
 
 const cleanOutputDirs = async () => {
-  await rm(imagesRoot, { recursive: true, force: true });
   await rm(path.join(docsRoot, "ja", "manual"), { recursive: true, force: true });
   await rm(path.join(docsRoot, "en", "manual"), { recursive: true, force: true });
 };
 
 const loadVersion = async () => {
-  const raw = await readFile(upstreamLessonPackageJson, "utf8");
-  return JSON.parse(raw).version ?? "0.0.0";
+  const envVersion = process.env.MANUAL_APP_VERSION?.trim();
+  if (envVersion) {
+    return envVersion;
+  }
+
+  for (const candidatePath of [upstreamLessonPackageJson, localPackageJson]) {
+    try {
+      const raw = await readFile(candidatePath, "utf8");
+      return JSON.parse(raw).version ?? "0.0.0";
+    } catch (error) {
+      if (
+        !error ||
+        typeof error !== "object" ||
+        !("code" in error) ||
+        error.code !== "ENOENT"
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  return "0.0.0";
 };
 
 const loadContextFile = async (contextPath) => {
@@ -723,6 +959,39 @@ const localeConfig = {
     localeIndexLinkLabel: "マニュアル一覧",
     manualIndexTitle: "Manual Index",
     manualIndexHeading: "マニュアル一覧",
+    pageHeaderLinksLabel: "一覧",
+    japaneseManualLinkLabel: "日本語一覧",
+    englishManualLinkLabel: "English Manual",
+    manualPagesHeading: "画面マニュアル",
+    fixtureAppendixHeading: "付録: テスト用ユーザー",
+    fixtureAppendixLinkLabel: "テスト用ユーザー一覧",
+    fixtureTitle: "Test Users",
+    fixtureHeading: "画像取得用テストユーザー",
+    fixtureUpdatedLabel: "最終更新",
+    fixtureOverviewHeading: "概要",
+    fixtureTeacherHeading: "教師",
+    fixtureStudentsHeading: "生徒",
+    fixtureSchoolLabel: "対象 schoolId",
+    fixtureGroupingLabel: "親グループ",
+    fixtureAvatarNote:
+      "生徒アバターはアバター購入画面の catalog から選んだ購入済みアバターを設定",
+    fixtureMedalNote: "メダルレベルはランクポイント合計から算出しています",
+    fixtureTeacherCountLabel: "教師",
+    fixtureStudentCountLabel: "生徒",
+    fixtureColumns: {
+      name: "名前",
+      role: "Role",
+      avatar: "Avatar",
+      classes: "所属クラス",
+      parent: "親アカウント",
+      points: "初期ポイント",
+      coins: "初期coin",
+      medalLevel: "メダルレベル",
+    },
+    fixtureTeacherAccountColumn: "アカウント",
+    fixtureStudentAccountColumn: "親アカウント",
+    fixtureTeacherAvatarFallback: "Generated SVG",
+    fixtureNoValue: "-",
   },
   en: {
     frontMatterLang: "en",
@@ -754,6 +1023,39 @@ const localeConfig = {
     localeIndexLinkLabel: "Manual Index",
     manualIndexTitle: "Manual Index",
     manualIndexHeading: "Manual Index",
+    pageHeaderLinksLabel: "Indexes",
+    japaneseManualLinkLabel: "Japanese Manual",
+    englishManualLinkLabel: "English Manual",
+    manualPagesHeading: "Manual Pages",
+    fixtureAppendixHeading: "Appendix: Test Users",
+    fixtureAppendixLinkLabel: "Test User List",
+    fixtureTitle: "Test Users",
+    fixtureHeading: "Image Capture Test Users",
+    fixtureUpdatedLabel: "Last Updated",
+    fixtureOverviewHeading: "Overview",
+    fixtureTeacherHeading: "Teacher",
+    fixtureStudentsHeading: "Students",
+    fixtureSchoolLabel: "Target schoolId",
+    fixtureGroupingLabel: "Parent groups",
+    fixtureAvatarNote:
+      "Student avatars are assigned from purchased avatars in the avatar catalog.",
+    fixtureMedalNote: "Medal levels are calculated from total rank points.",
+    fixtureTeacherCountLabel: "Teacher",
+    fixtureStudentCountLabel: "Students",
+    fixtureColumns: {
+      name: "Name",
+      role: "Role",
+      avatar: "Avatar",
+      classes: "Assigned Classes",
+      parent: "Parent Account",
+      points: "Initial Points",
+      coins: "Initial Coins",
+      medalLevel: "Medal Level",
+    },
+    fixtureTeacherAccountColumn: "Account",
+    fixtureStudentAccountColumn: "Parent Account",
+    fixtureTeacherAvatarFallback: "Generated SVG",
+    fixtureNoValue: "-",
   },
 };
 
@@ -1046,6 +1348,10 @@ const getLocalizedPageSpec = (pageSpec, lang) => {
 const renderMarkdown = ({ pageSpec, version, pageContext, lang }) => {
   const locale = localeConfig[lang];
   const localizedPageSpec = getLocalizedPageSpec(pageSpec, lang);
+  const japaneseManualIndexPath =
+    lang === "ja" ? "./index.md" : "../../ja/manual/index.md";
+  const englishManualIndexPath =
+    lang === "en" ? "./index.md" : "../../en/manual/index.md";
   const shouldUseContextText = lang === "ja";
   const summaryLines = [
     localizedPageSpec.description,
@@ -1061,6 +1367,10 @@ const renderMarkdown = ({ pageSpec, version, pageContext, lang }) => {
   const nextPageLines = (localizedPageSpec.nextPages ?? [])
     .map((pageLink) => `- [${pageLink.label}](./${pageLink.slug}.md)`)
     .join("\n");
+  const headerLinks = [
+    `[${locale.japaneseManualLinkLabel}](${japaneseManualIndexPath})`,
+    `[${locale.englishManualLinkLabel}](${englishManualIndexPath})`,
+  ].join(" | ");
 
   const itemSections = localizedPageSpec.items
     .map((item) => {
@@ -1116,6 +1426,8 @@ version: ${version}
 
 # ${localizedPageSpec.title}
 
+${locale.pageHeaderLinksLabel}: ${headerLinks}
+
 ## ${locale.section1}
 
 ![${localizedPageSpec.title}](${imageMarkdownPath(localizedPageSpec.imageName)})
@@ -1144,6 +1456,17 @@ const renderManualIndex = ({ version, lang }) => {
     .map((pageSpec) => getLocalizedPageSpec(pageSpec, lang))
     .map((pageSpec) => `- [${pageSpec.title}](./${pageSpec.slug}.md)`)
     .join("\n");
+  const appendixLinks = fixtureSummary
+    ? `## ${locale.manualPagesHeading}
+
+${pageLinks}
+
+## ${locale.fixtureAppendixHeading}
+
+- [${locale.fixtureAppendixLinkLabel}](./test-users.md)`
+    : `## ${locale.manualPagesHeading}
+
+${pageLinks}`;
   return `---
 title: ${locale.manualIndexTitle}
 lang: ${locale.frontMatterLang}
@@ -1153,7 +1476,88 @@ version: ${version}
 
 # ${locale.manualIndexHeading}
 
-${pageLinks}
+${appendixLinks}
+`;
+};
+
+const escapeTableCell = (value) =>
+  String(value ?? "").replace(/\|/g, "\\|");
+
+const renderFixtureManual = ({ lang, version }) => {
+  if (!fixtureSummary) {
+    return null;
+  }
+
+  const locale = localeConfig[lang];
+  const japaneseManualIndexPath =
+    lang === "ja" ? "./index.md" : "../../ja/manual/index.md";
+  const englishManualIndexPath =
+    lang === "en" ? "./index.md" : "../../en/manual/index.md";
+  const headerLinks = [
+    `[${locale.japaneseManualLinkLabel}](${japaneseManualIndexPath})`,
+    `[${locale.englishManualLinkLabel}](${englishManualIndexPath})`,
+  ].join(" | ");
+  const teacherClasses = fixtureSummary.teacher?.classes?.length
+    ? fixtureSummary.teacher.classes.join(", ")
+    : locale.fixtureNoValue;
+  const columns = locale.fixtureColumns;
+  const teacherName = fixtureSummary.teacher?.name ?? locale.fixtureNoValue;
+  const teacherAccount =
+    fixtureSummary.teacher?.email ||
+    fixtureSummary.teacher?.accountId ||
+    locale.fixtureNoValue;
+  const teacherAvatarCell = fixtureSummary.teacher?.avatar?.logo
+    ? `<img src="${fixtureSummary.teacher.avatar.logo}" alt="${teacherName}" width="40" height="40"><br>${fixtureSummary.teacher.avatar.name ?? locale.fixtureTeacherAvatarFallback}`
+    : fixtureSummary.teacher?.avatar?.name ?? locale.fixtureTeacherAvatarFallback;
+  const studentRows = (fixtureSummary.students ?? [])
+    .map((student) => {
+      const classes = student.classes?.length
+        ? student.classes.join("<br>")
+        : locale.fixtureNoValue;
+      const parent = student.parent
+        ? `${student.parent.name} (${student.parent.email || student.parent.accountId})`
+        : locale.fixtureNoValue;
+      const avatarCell = student.avatar?.logo
+        ? `<img src="${student.avatar.logo}" alt="${student.avatar.key || student.name}" width="40" height="40"><br>${student.avatar.name ?? student.avatar.key ?? locale.fixtureNoValue}`
+        : student.avatar?.badgeUrl
+        ? `<img src="${student.avatar.badgeUrl}" alt="${student.avatar.key || student.name}" width="40" height="40"><br>${student.avatar.name ?? student.avatar.key ?? locale.fixtureNoValue}`
+        : student.avatar?.name ?? student.avatar?.key ?? locale.fixtureNoValue;
+
+      return `| ${escapeTableCell(student.name)} | Student | ${avatarCell} | ${classes} | ${escapeTableCell(parent)} | ${student.points ?? 0} | ${student.coins ?? 0} | Lv.${student.medalLevel ?? locale.fixtureNoValue} |`;
+    })
+    .join("\n");
+
+  return `---
+title: ${locale.fixtureTitle}
+lang: ${locale.frontMatterLang}
+tag: manual
+version: ${version}
+---
+
+# ${locale.fixtureHeading}
+
+${locale.pageHeaderLinksLabel}: ${headerLinks}
+
+${locale.fixtureUpdatedLabel}: ${fixtureSummary.generatedAt}
+
+## ${locale.fixtureOverviewHeading}
+
+- ${locale.fixtureSchoolLabel}: \`${fixtureSummary.schoolId}\`
+- ${locale.fixtureTeacherCountLabel} 1, ${locale.fixtureStudentCountLabel} 8, ${locale.fixtureGroupingLabel} \`3 / 2 / 1 / 1 / 1\`
+- ${locale.fixtureAvatarNote}
+- ${locale.fixtureMedalNote}
+
+## ${locale.fixtureTeacherHeading}
+
+| ${columns.name} | ${columns.role} | ${columns.avatar} | ${columns.classes} | ${locale.fixtureTeacherAccountColumn} | ${columns.points} | ${columns.coins} | ${columns.medalLevel} |
+|---|---|---|---|---|---:|---:|---|
+| ${escapeTableCell(teacherName)} | Teacher | ${teacherAvatarCell} | ${escapeTableCell(teacherClasses)} | ${escapeTableCell(teacherAccount)} | ${locale.fixtureNoValue} | ${locale.fixtureNoValue} | ${locale.fixtureNoValue} |
+
+## ${locale.fixtureStudentsHeading}
+
+| ${columns.name} | ${columns.role} | ${columns.avatar} | ${columns.classes} | ${locale.fixtureStudentAccountColumn} | ${columns.points} | ${columns.coins} | ${columns.medalLevel} |
+|---|---|---|---|---|---:|---:|---|
+${studentRows}
 `;
 };
 
@@ -1190,7 +1594,115 @@ version: ${version}
 const renderConfig = () => `title: ECO Online Manual
 markdown: kramdown
 theme: minima
+header_pages: []
 `;
+
+const isExternalDocLink = (target) =>
+  /^(?:[a-z]+:)?\/\//i.test(target) ||
+  target.startsWith("mailto:") ||
+  target.startsWith("tel:") ||
+  target.startsWith("#");
+
+const validateGeneratedDocs = async ({
+  reusedExistingImages = false,
+  reusedAssets = [],
+} = {}) => {
+  const markdownFiles = [];
+  const manualDirs = [
+    path.join(docsRoot, "ja", "manual"),
+    path.join(docsRoot, "en", "manual"),
+  ];
+  const linkPattern = /!?\[[^\]]*\]\(([^)]+)\)/g;
+  const issues = [];
+
+  for (const manualDir of manualDirs) {
+    let fileNames = [];
+    try {
+      fileNames = await readdir(manualDir);
+    } catch (error) {
+      if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+
+    for (const fileName of fileNames) {
+      if (fileName.endsWith(".md")) {
+        markdownFiles.push(path.join(manualDir, fileName));
+      }
+    }
+  }
+
+  for (const markdownFile of markdownFiles) {
+    const content = await readFile(markdownFile, "utf8");
+    for (const match of content.matchAll(linkPattern)) {
+      const rawTarget = match[1]?.trim();
+      if (!rawTarget || isExternalDocLink(rawTarget)) {
+        continue;
+      }
+
+      const normalizedTarget = rawTarget.split("#")[0].split("?")[0];
+      if (!normalizedTarget) {
+        continue;
+      }
+
+      const resolvedTarget = path.resolve(path.dirname(markdownFile), normalizedTarget);
+      try {
+        await access(resolvedTarget);
+      } catch (error) {
+        if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+          issues.push({
+            source: path.relative(docsRoot, markdownFile),
+            target: normalizedTarget,
+            resolved: path.relative(docsRoot, resolvedTarget),
+          });
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  const lines = [
+    "---",
+    "title: Output Errors",
+    "lang: en",
+    "tag: report",
+    "---",
+    "",
+    "# Output Errors",
+    "",
+    `Generated At: ${new Date().toISOString()}`,
+    "",
+  ];
+
+  if (reusedExistingImages) {
+    lines.push(
+      "Note: This output reused existing image assets. Some screenshots may be older than the current markdown output.",
+    );
+    lines.push("");
+    if (reusedAssets.length > 0) {
+      lines.push("Reused asset groups:");
+      lines.push("");
+      for (const asset of reusedAssets) {
+        lines.push(`- ${asset}`);
+      }
+      lines.push("");
+    }
+  }
+
+  if (issues.length === 0) {
+    lines.push("No broken internal links or missing local assets were found.");
+  } else {
+    lines.push("The following broken internal links or missing local assets were found:");
+    lines.push("");
+    for (const issue of issues) {
+      lines.push(`- Source: \`${issue.source}\` -> Target: \`${issue.target}\` -> Resolved: \`${issue.resolved}\``);
+    }
+  }
+
+  await writeFile(path.join(docsRoot, "error.md"), `${lines.join("\n")}\n`, "utf8");
+  return issues;
+};
 
 const waitForPageReady = async (page) => {
   await page.waitForLoadState("domcontentloaded");
@@ -1386,6 +1898,8 @@ const capturePage = async ({ page, pageSpec, report }) => {
     path: path.join(imagesRoot, pageSpec.imageName),
     fullPage: true,
   });
+  report.capturedPages ??= [];
+  report.capturedPages.push(pageSpec.slug);
 
   for (const item of pageSpec.items) {
     const itemPath = path.join(imagesRoot, itemImageName(pageSpec, item));
@@ -1409,7 +1923,14 @@ const capturePage = async ({ page, pageSpec, report }) => {
 
 const runStep = async (report, stepName, action) => {
   try {
-    await action();
+    await Promise.race([
+      action(),
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Step timed out after ${flowStepTimeoutMs}ms: ${stepName}`));
+        }, flowStepTimeoutMs);
+      }),
+    ]);
   } catch (error) {
     report.flowFailures ??= [];
     report.flowFailures.push({
@@ -1745,6 +2266,67 @@ const openStudentCardDetail = async (page) => {
   await page.getByRole("button", { name: /^BACK$/i }).waitFor();
 };
 
+const resolveDeviceModeForPath = (gotoPath) => {
+  if (gotoPath === "/teacher") {
+    return "teacher";
+  }
+  if (gotoPath === "/shared") {
+    return "shared";
+  }
+  return "home";
+};
+
+const applyAppContextForPath = async (page, gotoPath) => {
+  const deviceMode = resolveDeviceModeForPath(gotoPath);
+  await page.evaluate(
+    ({ deviceMode, classId, studentId }) => {
+      window.localStorage.setItem("eco:deviceMode", deviceMode);
+      if (classId) {
+        window.localStorage.setItem("eco:selectedClassId", classId);
+      }
+      if (deviceMode === "home" && studentId) {
+        window.localStorage.setItem("eco:selectedStudentId", studentId);
+      }
+      if (deviceMode === "shared" && studentId) {
+        window.sessionStorage.setItem("eco:sharedCurrentStudentId", studentId);
+      }
+    },
+    {
+      deviceMode,
+      classId: fixturePrimaryClassId,
+      studentId: fixturePrimaryStudentId,
+    },
+  );
+};
+
+const navigateAfterBrowserLogin = async (page, gotoPath) => {
+  const hasAccessToken = await page.evaluate(
+    () =>
+      typeof window.localStorage.getItem("eco:authAccessToken") === "string" &&
+      window.localStorage.getItem("eco:authAccessToken").length > 0,
+  );
+
+  if (!hasAccessToken) {
+    return;
+  }
+
+  await applyAppContextForPath(page, gotoPath);
+
+  await page.goto(`${baseUrl}${gotoPath}`, { waitUntil: "domcontentloaded" });
+};
+
+const openTeacherStartupPage = async (page) => {
+  await applyAppContextForPath(page, "/teacher");
+  await page.goto(`${baseUrl}/teacher/lesson`, { waitUntil: "domcontentloaded" });
+  await waitForPageReady(page);
+};
+
+const openSharedStartupPage = async (page) => {
+  await applyAppContextForPath(page, "/shared");
+  await page.goto(`${baseUrl}/shared/lesson`, { waitUntil: "domcontentloaded" });
+  await waitForPageReady(page);
+};
+
 const loginAs = async (page, email, gotoPath) => {
   await page.goto(`${baseUrl}${gotoPath}`, { waitUntil: "domcontentloaded" });
   await waitForPageReady(page);
@@ -1752,6 +2334,10 @@ const loginAs = async (page, email, gotoPath) => {
     await page.locator('input[type="email"]').fill(email);
     await page.locator('input[type="password"]').fill(password);
     await page.locator('button[type="submit"]').click();
+    await page.waitForTimeout(2_000);
+    if (/\/login\b/.test(page.url())) {
+      await navigateAfterBrowserLogin(page, gotoPath);
+    }
     const postLoginUrlMap = {
       "/teacher": /\/select-class$|\/teacher\/lesson$/,
       "/home": /\/switch-student$|\/home\/lesson$/,
@@ -1761,12 +2347,15 @@ const loginAs = async (page, email, gotoPath) => {
     if (postLoginUrl) {
       await page.waitForURL(postLoginUrl, { timeout: 30_000 });
     }
+    await applyAppContextForPath(page, gotoPath);
     await waitForPageReady(page);
   }
 };
 
 const parentFlow = async (browser, report) => {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1400 } });
+  const context = await createManualCaptureContext(browser, {
+    viewport: { width: 1440, height: 1400 },
+  });
   const page = await context.newPage();
 
   await runStep(report, "parent:login-page", async () => {
@@ -1783,6 +2372,10 @@ const parentFlow = async (browser, report) => {
     await page.locator('input[type="email"]').fill(parentEmail);
     await page.locator('input[type="password"]').fill(password);
     await page.locator('button[type="submit"]').click();
+    await page.waitForTimeout(2_000);
+    if (/\/login\b/.test(page.url())) {
+      await navigateAfterBrowserLogin(page, "/home");
+    }
     await waitForPageReady(page);
     await capturePage({
       page,
@@ -1837,7 +2430,9 @@ const parentFlow = async (browser, report) => {
 };
 
 const teacherFlow = async (browser, report) => {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1400 } });
+  const context = await createManualCaptureContext(browser, {
+    viewport: { width: 1440, height: 1400 },
+  });
   const page = await context.newPage();
 
   await runStep(report, "teacher:select-class", async () => {
@@ -1850,8 +2445,19 @@ const teacherFlow = async (browser, report) => {
   });
 
   await runStep(report, "teacher:startup", async () => {
-    await page.getByRole("button", { name: /^Select$/i }).click();
-    await waitForPageReady(page);
+    if (/\/select-class$/.test(page.url())) {
+      const selectButton = page.getByRole("button", { name: /^Select$/i });
+      if (
+        (await selectButton.isVisible().catch(() => false)) &&
+        (await selectButton.isEnabled().catch(() => false))
+      ) {
+        await selectButton.click();
+        await waitForPageReady(page);
+      }
+    }
+    if (!/\/teacher\/lesson(?:$|\?)/.test(page.url())) {
+      await openTeacherStartupPage(page);
+    }
     await capturePage({
       page,
       pageSpec: getPageSpec("teacher-startup"),
@@ -1863,7 +2469,9 @@ const teacherFlow = async (browser, report) => {
 };
 
 const sharedFlow = async (browser, report) => {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1400 } });
+  const context = await createManualCaptureContext(browser, {
+    viewport: { width: 1440, height: 1400 },
+  });
   const page = await context.newPage();
 
   await runStep(report, "shared:select-class", async () => {
@@ -1886,8 +2494,19 @@ const sharedFlow = async (browser, report) => {
   });
 
   await runStep(report, "shared:startup", async () => {
-    await page.getByRole("button", { name: /^Select$/i }).click();
-    await waitForPageReady(page);
+    if (/\/select-student$/.test(page.url())) {
+      const selectButton = page.getByRole("button", { name: /^Select$/i });
+      if (
+        (await selectButton.isVisible().catch(() => false)) &&
+        (await selectButton.isEnabled().catch(() => false))
+      ) {
+        await selectButton.click();
+        await waitForPageReady(page);
+      }
+    }
+    if (!/\/shared\/lesson(?:$|\?)/.test(page.url())) {
+      await openSharedStartupPage(page);
+    }
     await capturePage({
       page,
       pageSpec: getPageSpec("shared-startup"),
@@ -1899,10 +2518,10 @@ const sharedFlow = async (browser, report) => {
 };
 
 const lessonFlow = async (browser, report) => {
-  const teacherContext = await browser.newContext({
+  const teacherContext = await createManualCaptureContext(browser, {
     viewport: { width: 1440, height: 1400 },
   });
-  const homeContext = await browser.newContext({
+  const homeContext = await createManualCaptureContext(browser, {
     viewport: { width: 1440, height: 1400 },
   });
   const teacherPage = await teacherContext.newPage();
@@ -1912,13 +2531,22 @@ const lessonFlow = async (browser, report) => {
 
   await runStep(report, "lesson:teacher-session", async () => {
     await loginAs(teacherPage, teacherEmail, "/teacher");
-    if (/\/select-class$/.test(teacherPage.url())) {
-      await waitForCaptureReady(teacherPage, "teacher-select-class");
-      await teacherPage.getByRole("button", { name: /^Select$/i }).click();
-      await waitForPageReady(teacherPage);
+    if (fixtureLessonId) {
+      lessonId = fixtureLessonId;
+      await teacherPage.goto(
+        `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await expectSessionReady(teacherPage, "teacher");
+    } else {
+      if (/\/select-class$/.test(teacherPage.url())) {
+        await waitForCaptureReady(teacherPage, "teacher-select-class");
+        await teacherPage.getByRole("button", { name: /^Select$/i }).click();
+        await waitForPageReady(teacherPage);
+      }
+      await ensureTeacherSession(teacherPage);
+      lessonId = extractLessonId(teacherPage.url());
     }
-    await ensureTeacherSession(teacherPage);
-    lessonId = extractLessonId(teacherPage.url());
     await capturePage({
       page: teacherPage,
       pageSpec: getPageSpec("teacher-lesson"),
@@ -1929,11 +2557,19 @@ const lessonFlow = async (browser, report) => {
   if (lessonId) {
     await runStep(report, "lesson:home-session", async () => {
       await loginAs(homePage, parentEmail, "/home");
-      if (/\/switch-student$/.test(homePage.url())) {
-        await homePage.getByRole("button", { name: /^Start$/i }).click();
-        await waitForPageReady(homePage);
+      if (fixtureLessonId) {
+        await homePage.goto(
+          `${baseUrl}/home/lesson/${lessonId}/session/content/student-card?mode=appsync`,
+          { waitUntil: "domcontentloaded" },
+        );
+        await expectSessionReady(homePage, "home");
+      } else {
+        if (/\/switch-student$/.test(homePage.url())) {
+          await homePage.getByRole("button", { name: /^Start$/i }).click();
+          await waitForPageReady(homePage);
+        }
+        await enterHomeLessonSession(homePage);
       }
-      await enterHomeLessonSession(homePage);
       await capturePage({
         page: homePage,
         pageSpec: getPageSpec("home-lesson"),
@@ -1984,7 +2620,7 @@ const lessonFlow = async (browser, report) => {
     });
 
     await runStep(report, "lesson:teacher-panel-xs", async () => {
-      const xsContext = await browser.newContext({
+      const xsContext = await createManualCaptureContext(browser, {
         viewport: { width: 390, height: 844 },
       });
       const xsPage = await xsContext.newPage();
@@ -2052,6 +2688,12 @@ const lessonFlow = async (browser, report) => {
 
 const generateDocs = async () => {
   const version = await loadVersion();
+  const fixtureOnly =
+    process.env.MANUAL_GENERATE_FIXTURE_ONLY === "1" ||
+    process.env.MANUAL_GENERATE_FIXTURE_ONLY === "true";
+  const markdownOnly =
+    process.env.MANUAL_GENERATE_MARKDOWN_ONLY === "1" ||
+    process.env.MANUAL_GENERATE_MARKDOWN_ONLY === "true";
   const report = {
     capturedItems: [],
     failedItems: [],
@@ -2059,6 +2701,105 @@ const generateDocs = async () => {
     baseUrl,
     generatedAt: new Date().toISOString(),
   };
+  const existingPageImages = new Set();
+  for (const pageSpec of pageSpecs) {
+    try {
+      await access(path.join(imagesRoot, pageSpec.imageName));
+      existingPageImages.add(pageSpec.slug);
+    } catch (error) {
+      if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  if (fixtureOnly) {
+    await ensureOutputDirs();
+    if (fixtureSummary) {
+      await writeFile(
+        path.join(docsRoot, "ja", "manual", "test-users.md"),
+        renderFixtureManual({ version, lang: "ja" }),
+        "utf8",
+      );
+      await writeFile(
+        path.join(docsRoot, "en", "manual", "test-users.md"),
+        renderFixtureManual({ version, lang: "en" }),
+        "utf8",
+      );
+      report.generatedPages.push("test-users");
+    }
+    await writeFile(
+      path.join(artifactsRoot, "last-run.json"),
+      JSON.stringify(report, null, 2),
+      "utf8",
+    );
+    await validateGeneratedDocs({
+      reusedExistingImages: true,
+      reusedAssets: ["fixture-only markdown output"],
+    });
+    return;
+  }
+
+  if (markdownOnly) {
+    await ensureOutputDirs();
+    for (const pageSpec of pageSpecs) {
+      for (const lang of ["ja", "en"]) {
+        const pageContext = await loadPageContext(pageSpec, lang);
+        await writeFile(
+          path.join(docsRoot, lang, "manual", `${pageSpec.slug}.md`),
+          renderMarkdown({ pageSpec, version, pageContext, lang }),
+          "utf8",
+        );
+      }
+      report.generatedPages.push(pageSpec.slug);
+    }
+
+    await writeFile(path.join(docsRoot, "_config.yml"), renderConfig(), "utf8");
+    await writeFile(path.join(docsRoot, "index.md"), renderRootIndex(), "utf8");
+    await writeFile(
+      path.join(docsRoot, "ja", "index.md"),
+      renderLocaleIndex({ version, lang: "ja" }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(docsRoot, "ja", "manual", "index.md"),
+      renderManualIndex({ version, lang: "ja" }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(docsRoot, "en", "index.md"),
+      renderLocaleIndex({ version, lang: "en" }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(docsRoot, "en", "manual", "index.md"),
+      renderManualIndex({ version, lang: "en" }),
+      "utf8",
+    );
+    if (fixtureSummary) {
+      await writeFile(
+        path.join(docsRoot, "ja", "manual", "test-users.md"),
+        renderFixtureManual({ version, lang: "ja" }),
+        "utf8",
+      );
+      await writeFile(
+        path.join(docsRoot, "en", "manual", "test-users.md"),
+        renderFixtureManual({ version, lang: "en" }),
+        "utf8",
+      );
+      report.generatedPages.push("test-users");
+    }
+    await writeFile(
+      path.join(artifactsRoot, "last-run.json"),
+      JSON.stringify(report, null, 2),
+      "utf8",
+    );
+    await validateGeneratedDocs({
+      reusedExistingImages: true,
+      reusedAssets: ["markdown-only output"],
+    });
+    return;
+  }
 
   await cleanOutputDirs();
   await ensureOutputDirs();
@@ -2097,6 +2838,13 @@ const generateDocs = async () => {
     renderManualIndex({ version, lang: "ja" }),
     "utf8",
   );
+  if (fixtureSummary) {
+    await writeFile(
+      path.join(docsRoot, "ja", "manual", "test-users.md"),
+      renderFixtureManual({ version, lang: "ja" }),
+      "utf8",
+    );
+  }
   await writeFile(
     path.join(docsRoot, "en", "index.md"),
     renderLocaleIndex({ version, lang: "en" }),
@@ -2107,11 +2855,26 @@ const generateDocs = async () => {
     renderManualIndex({ version, lang: "en" }),
     "utf8",
   );
+  if (fixtureSummary) {
+    await writeFile(
+      path.join(docsRoot, "en", "manual", "test-users.md"),
+      renderFixtureManual({ version, lang: "en" }),
+      "utf8",
+    );
+  }
   await writeFile(
     path.join(artifactsRoot, "last-run.json"),
     JSON.stringify(report, null, 2),
     "utf8",
   );
+  const capturedPages = new Set(report.capturedPages ?? []);
+  const reusedAssets = pageSpecs
+    .filter((pageSpec) => existingPageImages.has(pageSpec.slug) && !capturedPages.has(pageSpec.slug))
+    .map((pageSpec) => pageSpec.slug);
+  await validateGeneratedDocs({
+    reusedExistingImages: reusedAssets.length > 0,
+    reusedAssets,
+  });
 };
 
 await generateDocs();

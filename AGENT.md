@@ -193,6 +193,8 @@ Implication:
 - English manual generation should also read that Japanese context as its base input
 - if English-specific overrides are ever needed, they should be additive and not replace Japanese context as the primary source
 - context files are authoring inputs for Codex and generator logic, not content that must be emitted verbatim into the final manual
+- output manual filenames should use English slugs even for Japanese pages
+- avoid Japanese characters in generated manual filenames; localize titles and headings inside markdown instead
 
 ### Markdown editing policy
 

@@ -1,18 +1,52 @@
 #!/usr/bin/env node
 
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..");
 const stateDir = path.join(__dirname, ".state");
+const artifactDir = path.join(__dirname, ".artifacts");
+const docsDir = path.join(repoRoot, "docs", "ja", "manual");
 const defaultConfigPath = path.join(
   __dirname,
   "dev-image-fixtures.config.json",
 );
 const defaultStatePath = path.join(stateDir, "dev-image-fixtures.state.json");
+const manualOutputPath = path.join(docsDir, "test-users.md");
+const summaryOutputPath = path.join(
+  artifactDir,
+  "dev-image-fixtures-summary.json",
+);
+const defaultAvatarCatalogBaseUrl =
+  process.env.ECO_AVATAR_ASSET_BASE_URL ??
+  process.env.VITE_ASSET_BASE_URL ??
+  process.env.ECO_ASSET_BASE_URL ??
+  "https://avatars.eco-online.site";
+const defaultAvatarManifestPath = "/v1/avatars/manifest.json";
+const defaultAwsRegion =
+  process.env.AWS_REGION ??
+  process.env.ECO_COGNITO_REGION ??
+  "ap-northeast-1";
+const defaultCognitoUserPoolId =
+  process.env.ECO_COGNITO_USER_POOL_ID ??
+  process.env.VITE_COGNITO_USER_POOL_ID ??
+  "";
+const defaultDynamoTableName =
+  process.env.ECO_DYNAMODB_TABLE_PRIMARY ?? "eco-online";
+const execFileAsync = promisify(execFile);
+const medalLevels = [
+  { level: 5, minPoints: 400 },
+  { level: 4, minPoints: 300 },
+  { level: 3, minPoints: 200 },
+  { level: 2, minPoints: 100 },
+  { level: 1, minPoints: 0 },
+];
 const jstFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Tokyo",
   year: "numeric",
@@ -51,6 +85,17 @@ const studentParentGroups = [
   "parent-e",
 ];
 
+const studentInitialProfiles = [
+  { targetPoints: 40, targetCoins: 12 },
+  { targetPoints: 90, targetCoins: 14 },
+  { targetPoints: 120, targetCoins: 16 },
+  { targetPoints: 180, targetCoins: 18 },
+  { targetPoints: 220, targetCoins: 20 },
+  { targetPoints: 280, targetCoins: 22 },
+  { targetPoints: 340, targetCoins: 24 },
+  { targetPoints: 420, targetCoins: 26 },
+];
+
 const managedClassTemplates = [
   {
     key: "primary",
@@ -76,6 +121,17 @@ const managedClassTemplates = [
     startTime: "18:00",
     duration: 45,
   },
+];
+
+const avatarBackgroundPalette = [
+  { key: "red", hex: "#E74C3C" },
+  { key: "pink", hex: "#E91E63" },
+  { key: "blue", hex: "#4F8EF7" },
+  { key: "orange", hex: "#F39C12" },
+  { key: "green", hex: "#26A269" },
+  { key: "brown", hex: "#8D6E63" },
+  { key: "purple", hex: "#9B59B6" },
+  { key: "yellow", hex: "#F1C40F" },
 ];
 
 const parseArgs = (argv) => {
@@ -134,6 +190,13 @@ const loadConfig = async (configPath) => {
     path: resolvedPath,
     value: {
       prefix: "IMGFIX",
+      apiBaseUrl: resolveApiOrigin(config.baseUrl),
+      avatarCatalogBaseUrl: defaultAvatarCatalogBaseUrl,
+      avatarManifestPath: defaultAvatarManifestPath,
+      awsRegion: defaultAwsRegion,
+      cognitoUserPoolId: defaultCognitoUserPoolId,
+      dynamoTableName: defaultDynamoTableName,
+      authAccountPassword: process.env.E2E_LOGIN_PASSWORD ?? "",
       ...config,
     },
   };
@@ -144,11 +207,12 @@ const loadState = async (statePath) => {
     return await readJsonFile(statePath);
   } catch {
     return {
-      version: 1,
+      version: 2,
       teacher: null,
       parents: {},
       students: {},
       classes: {},
+      outputs: {},
     };
   }
 };
@@ -156,6 +220,16 @@ const loadState = async (statePath) => {
 const saveState = async (statePath, state) => {
   await mkdir(path.dirname(statePath), { recursive: true });
   await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+};
+
+const writeJsonFile = async (targetPath, value) => {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+};
+
+const writeTextFile = async (targetPath, value) => {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, value, "utf8");
 };
 
 const toIsoDateJst = (date = new Date()) => jstFormatter.format(date);
@@ -180,6 +254,44 @@ const createSvgDataUrl = ({ label, background, foreground = "#ffffff" }) => {
   `.replace(/\s+/g, " ");
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 };
+
+const escapeXml = (value) =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+
+const fetchAssetAsDataUrl = async (url) => {
+  if (!url) {
+    return "";
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch avatar badge asset: ${response.status} ${url}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "image/webp";
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return `data:${contentType};base64,${buffer.toString("base64")}`;
+};
+
+const createBadgeCompositeDataUrl = ({ badgeDataUrl, backgroundHex }) => {
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">',
+    `  <rect width="160" height="160" rx="32" fill="${escapeXml(backgroundHex)}" />`,
+    `  <image href="${escapeXml(badgeDataUrl)}" x="0" y="0" width="160" height="160" preserveAspectRatio="xMidYMid meet" />`,
+    "</svg>",
+  ].join("\n");
+
+  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+};
+
+const pickRandomAvatarBackground = () =>
+  avatarBackgroundPalette[
+    Math.floor(Math.random() * avatarBackgroundPalette.length)
+  ];
 
 const resolveApiOrigin = (baseUrl) => new URL(baseUrl).origin;
 
@@ -224,8 +336,8 @@ const resolveBearerToken = async (baseUrl) => {
   }
 };
 
-const createApiClient = ({ baseUrl, bearerToken }) => {
-  const apiOrigin = resolveApiOrigin(baseUrl);
+const createApiClient = ({ apiBaseUrl, bearerToken }) => {
+  const apiOrigin = resolveApiOrigin(apiBaseUrl);
 
   const request = async (method, pathName, body) => {
     const response = await fetch(`${apiOrigin}/api${pathName}`, {
@@ -294,15 +406,39 @@ const getSchoolClassStudents = async (api, schoolId, classId) => {
   return Array.isArray(json?.students) ? json.students : [];
 };
 
+const getStudentCoins = async (api, studentId) => {
+  const json = await api.get(
+    `/students/${encodeURIComponent(studentId)}/coins`,
+  );
+  return json?.coins ?? null;
+};
+
+const getStudentRank = async (api, studentId) => {
+  const json = await api.get(
+    `/students/${encodeURIComponent(studentId)}/rank-points`,
+  );
+  return json?.rank ?? null;
+};
+
+const getStudentAvatars = async (api, studentId) => {
+  const json = await api.get(
+    `/students/${encodeURIComponent(studentId)}/avatars`,
+  );
+  return json?.avatars ?? null;
+};
+
 const resolveManagedStudents = (prefix) =>
   Array.from({ length: 8 }, (_, index) => {
     const studentIndex = index + 1;
+    const profile = studentInitialProfiles[index];
     return {
       key: `student-${String(studentIndex).padStart(2, "0")}`,
       name: `${prefix} Student ${studentIndex}`,
       avatarLabel: `S${studentIndex}`,
       parentKey: studentParentGroups[index],
       studentIndex,
+      targetPoints: profile.targetPoints,
+      targetCoins: profile.targetCoins,
     };
   });
 
@@ -339,14 +475,367 @@ const findUserByConfig = (users, subject) => {
   return null;
 };
 
-const ensureTeacherAndParents = async ({ api, config, state }) => {
+const runAws = async (args, awsRegion = defaultAwsRegion) => {
+  const fullArgs = [...args, "--region", awsRegion];
+  if (process.env.AWS_PROFILE) {
+    fullArgs.push("--profile", process.env.AWS_PROFILE);
+  }
+
+  try {
+    const { stdout } = await execFileAsync("aws", fullArgs, {
+      env: process.env,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    return stdout;
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : "AWS CLI execution failed";
+    throw new Error(`AWS CLI failed: ${detail}`);
+  }
+};
+
+const mapUserAttributes = (attributes) =>
+  Object.fromEntries(
+    (Array.isArray(attributes) ? attributes : []).flatMap((item) => {
+      if (!item?.Name) {
+        return [];
+      }
+      return [[item.Name, item.Value ?? ""]];
+    }),
+  );
+
+const buildDynamoAttributeValue = (value) => {
+  if (value === null || value === undefined) {
+    return { NULL: true };
+  }
+  if (typeof value === "string") {
+    return { S: value };
+  }
+  if (typeof value === "boolean") {
+    return { BOOL: value };
+  }
+  if (typeof value === "number") {
+    return { N: String(value) };
+  }
+  if (Array.isArray(value)) {
+    return { L: value.map((item) => buildDynamoAttributeValue(item)) };
+  }
+  return {
+    M: Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        buildDynamoAttributeValue(entry),
+      ]),
+    ),
+  };
+};
+
+const getCognitoUser = async ({ username, cognitoUserPoolId, awsRegion }) => {
+  if (!username || !cognitoUserPoolId) {
+    return null;
+  }
+
+  try {
+    const stdout = await runAws(
+      [
+        "cognito-idp",
+        "admin-get-user",
+        "--user-pool-id",
+        cognitoUserPoolId,
+        "--username",
+        username,
+      ],
+      awsRegion,
+    );
+    return JSON.parse(stdout || "{}");
+  } catch {
+    return null;
+  }
+};
+
+const ensureCognitoAuthUser = async ({
+  email,
+  name,
+  password,
+  awsRegion,
+  cognitoUserPoolId,
+}) => {
+  if (!email || !name || !password || !cognitoUserPoolId) {
+    throw new Error("email, name, password, cognitoUserPoolId are required.");
+  }
+
+  let user = await getCognitoUser({
+    username: email,
+    cognitoUserPoolId,
+    awsRegion,
+  });
+  if (!user) {
+    const requestedUsername = `imgfix-${randomUUID()}`;
+    const stdout = await runAws(
+      [
+        "cognito-idp",
+        "admin-create-user",
+        "--user-pool-id",
+        cognitoUserPoolId,
+        "--username",
+        requestedUsername,
+        "--user-attributes",
+        `Name=email,Value=${email}`,
+        "Name=email_verified,Value=true",
+        `Name=name,Value=${name}`,
+        "--message-action",
+        "SUPPRESS",
+      ],
+      awsRegion,
+    );
+    const createdUser = JSON.parse(stdout || "{}")?.User ?? null;
+    user =
+      (await getCognitoUser({
+        username: createdUser?.Username ?? requestedUsername,
+        cognitoUserPoolId,
+        awsRegion,
+      })) ??
+      createdUser;
+  }
+
+  const attributes = mapUserAttributes(user?.UserAttributes ?? user?.Attributes);
+  const accountId = attributes.sub || user?.Username;
+  if (!accountId) {
+    throw new Error(`Cognito sub was not resolved for ${email}.`);
+  }
+
+  await ensureCognitoPassword({
+    email,
+    password,
+    awsRegion,
+    cognitoUserPoolId,
+  });
+
+  return accountId;
+};
+
+const putAuthAccountLinks = async ({
+  accountId,
+  companyId,
+  schoolId,
+  email,
+  name,
+  logo,
+  role,
+  tableName,
+}) => {
+  const now = new Date().toISOString();
+  const accountItem = {
+    PK: `ACCOUNT#${accountId}`,
+    SK: "ACCOUNT",
+    itemType: "Account",
+    entityId: accountId,
+    accountId,
+    companyId,
+    name,
+    email,
+    logo,
+    roles: [role],
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const companyLink =
+    role === "teacher"
+      ? {
+          PK: `COMPANY#${companyId}`,
+          SK: `COMPANY-TEACHER#${accountId}`,
+          itemType: "CompanyTeacherLink",
+          companyId,
+          accountId,
+          accountLookupPK: `ACCOUNT#${accountId}`,
+          accountLookupSK: `COMPANY#${companyId}#CompanyTeacherLink`,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        }
+      : {
+          PK: `COMPANY#${companyId}`,
+          SK: `COMPANY-PARENT#${accountId}`,
+          itemType: "CompanyParentLink",
+          companyId,
+          accountId,
+          accountLookupPK: `ACCOUNT#${accountId}`,
+          accountLookupSK: `COMPANY#${companyId}#CompanyParentLink`,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+  const schoolLink =
+    role === "teacher"
+      ? {
+          PK: `SCHOOL#${schoolId}`,
+          SK: `SCHOOL-TEACHER#${accountId}`,
+          itemType: "SchoolTeacherLink",
+          companyId,
+          schoolId,
+          accountId,
+          accountLookupPK: `ACCOUNT#${accountId}`,
+          accountLookupSK: `SCHOOL#${schoolId}#SchoolTeacherLink`,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        }
+      : {
+          PK: `SCHOOL#${schoolId}`,
+          SK: `SCHOOL-PARENT#${accountId}`,
+          itemType: "SchoolParentLink",
+          companyId,
+          schoolId,
+          accountId,
+          accountLookupPK: `ACCOUNT#${accountId}`,
+          accountLookupSK: `SCHOOL#${schoolId}#SchoolParentLink`,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+  const transactItems = [accountItem, companyLink, schoolLink].map((item) => ({
+    Put: {
+      TableName: tableName,
+      Item: Object.fromEntries(
+        Object.entries(item).map(([key, value]) => [
+          key,
+          buildDynamoAttributeValue(value),
+        ]),
+      ),
+    },
+  }));
+
+  const tempPath = path.join(
+    artifactDir,
+    `.aws-transact-${role}-${accountId}-${Date.now()}.json`,
+  );
+  await writeJsonFile(tempPath, transactItems);
+  try {
+    await runAws(
+      [
+        "dynamodb",
+        "transact-write-items",
+        "--transact-items",
+        `file://${tempPath}`,
+      ],
+      defaultAwsRegion,
+    );
+  } finally {
+    await rm(tempPath, { force: true });
+  }
+};
+
+const createManagedAuthUser = async ({
+  config,
+  schoolId,
+  companyId,
+  role,
+  subject,
+  fallbackName,
+  logoLabel,
+  logoColor,
+}) => {
+  if (!subject.email) {
+    throw new Error(`Cannot create ${role} user without email.`);
+  }
+
+  const name = subject.name ?? fallbackName;
+  const logo = createSvgDataUrl({
+    label: logoLabel,
+    background: logoColor,
+  });
+  const accountId = await ensureCognitoAuthUser({
+    email: subject.email,
+    name,
+    password: config.authAccountPassword,
+    awsRegion: config.awsRegion,
+    cognitoUserPoolId: config.cognitoUserPoolId,
+  });
+
+  await putAuthAccountLinks({
+    accountId,
+    companyId,
+    schoolId,
+    email: subject.email,
+    name,
+    logo,
+    role,
+    tableName: config.dynamoTableName,
+  });
+};
+
+const ensureCognitoPassword = async ({
+  email,
+  password,
+  awsRegion,
+  cognitoUserPoolId,
+}) => {
+  if (!email || !password || !cognitoUserPoolId) {
+    return;
+  }
+
+  try {
+    await runAws(
+      [
+        "cognito-idp",
+        "admin-set-user-password",
+        "--user-pool-id",
+        cognitoUserPoolId,
+        "--username",
+        email,
+        "--password",
+        password,
+        "--permanent",
+      ],
+      awsRegion,
+    );
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : "aws cognito-idp failed";
+    throw new Error(
+      `Failed to set Cognito password for ${email}. Check AWS SSO session and Cognito settings. ${detail}`,
+    );
+  }
+};
+
+const ensureTeacherAndParents = async ({
+  api,
+  config,
+  state,
+  schoolId,
+  companyId,
+}) => {
   const users = await getUsers(api);
-  const teacher = findUserByConfig(users, config.teacher);
+  let teacher = findUserByConfig(users, config.teacher);
+  if (!teacher && config.teacher.createIfMissing) {
+    await createManagedAuthUser({
+      config,
+      schoolId,
+      companyId,
+      role: "teacher",
+      subject: config.teacher,
+      fallbackName: `${config.prefix} Teacher`,
+      logoLabel: "T",
+      logoColor: "#E74C3C",
+    });
+    teacher = findUserByConfig(await getUsers(api), config.teacher);
+  }
   if (!teacher) {
     throw new Error(
       "Teacher account was not found. Provide an existing accountId or email in config.",
     );
   }
+
+  await ensureCognitoPassword({
+    email: teacher.email ?? config.teacher.email ?? "",
+    password: config.authAccountPassword,
+    awsRegion: config.awsRegion,
+    cognitoUserPoolId: config.cognitoUserPoolId,
+  });
 
   state.teacher = {
     accountId: teacher.accountId,
@@ -355,12 +844,31 @@ const ensureTeacherAndParents = async ({ api, config, state }) => {
   };
 
   for (const parentConfig of config.parents) {
-    const parent = findUserByConfig(users, parentConfig);
+    let parent = findUserByConfig(users, parentConfig);
+    if (!parent && parentConfig.createIfMissing) {
+      await createManagedAuthUser({
+        config,
+        schoolId,
+        companyId,
+        role: "parent",
+        subject: parentConfig,
+        fallbackName: parentConfig.name ?? `${config.prefix} ${parentConfig.key}`,
+        logoLabel: parentConfig.key.replace("parent-", "P").toUpperCase(),
+        logoColor: "#34495E",
+      });
+      parent = findUserByConfig(await getUsers(api), parentConfig);
+    }
     if (!parent) {
       throw new Error(
         `Parent account was not found for key=${parentConfig.key}. Provide an existing accountId or email.`,
       );
     }
+    await ensureCognitoPassword({
+      email: parent.email ?? parentConfig.email ?? "",
+      password: config.authAccountPassword,
+      awsRegion: config.awsRegion,
+      cognitoUserPoolId: config.cognitoUserPoolId,
+    });
     state.parents[parentConfig.key] = {
       accountId: parent.accountId,
       email: parent.email ?? parentConfig.email ?? "",
@@ -371,7 +879,7 @@ const ensureTeacherAndParents = async ({ api, config, state }) => {
   return {
     users,
     teacherAccountId: teacher.accountId,
-    companyId: teacher.companyId,
+    companyId: teacher.companyId ?? companyId,
   };
 };
 
@@ -493,16 +1001,23 @@ const updateTeacherAvatar = async ({ api, teacherAccountId, teacherName }) => {
   });
 };
 
-const updateStudentAvatar = async ({ api, studentId, studentSpec }) => {
+const updateStudentProfile = async ({ api, studentId, studentSpec, logo }) => {
   await api.put(`/students/${encodeURIComponent(studentId)}`, {
     name: studentSpec.name,
     isActive: true,
-    logo: createSvgDataUrl({
-      label: studentSpec.avatarLabel,
-      background: ["#4F8EF7", "#26A269", "#F39C12", "#9B59B6"][
-        (studentSpec.studentIndex - 1) % 4
-      ],
-    }),
+    logo,
+  });
+};
+
+const buildStudentAvatarLogo = async (avatar) => {
+  const badgeSource = avatar?.badgeUrl || avatar?.avatarUrl || "";
+  if (!badgeSource) {
+    return "";
+  }
+
+  return createBadgeCompositeDataUrl({
+    badgeDataUrl: await fetchAssetAsDataUrl(badgeSource),
+    backgroundHex: pickRandomAvatarBackground().hex,
   });
 };
 
@@ -573,12 +1088,7 @@ const seedStudentProgress = async ({
   );
 };
 
-const syncClass = async ({
-  api,
-  schoolId,
-  classId,
-  patch,
-}) => {
+const syncClass = async ({ api, schoolId, classId, patch }) => {
   const current = await getSchoolClass(api, schoolId, classId);
   if (!current) {
     throw new Error(`Class not found: ${classId}`);
@@ -623,6 +1133,16 @@ const replaceManagedClassSessions = async ({
 }) => {
   const today = toIsoDateJst();
   const year = String(new Date(`${today}T00:00:00+09:00`).getUTCFullYear());
+
+  // The backend currently performs delete+put in one batch. Clearing once first
+  // avoids same-key collisions when we reinsert the same date.
+  await api.post(
+    `/schools/${encodeURIComponent(schoolId)}/classes/${encodeURIComponent(classId)}/sessions/${encodeURIComponent(year)}`,
+    {
+      sessions: [],
+    },
+  );
+
   await api.post(
     `/schools/${encodeURIComponent(schoolId)}/classes/${encodeURIComponent(classId)}/sessions/${encodeURIComponent(year)}`,
     {
@@ -645,21 +1165,450 @@ const replaceManagedClassSessions = async ({
   );
 };
 
+const markManagedClassSessionInProgress = async ({
+  config,
+  schoolId,
+  classId,
+  date = toIsoDateJst(),
+}) => {
+  const year = String(new Date(`${date}T00:00:00+09:00`).getUTCFullYear());
+  const now = new Date().toISOString();
+  const key = JSON.stringify({
+    PK: { S: `SCHOOL#${schoolId}` },
+    SK: { S: `CLASS#${classId}#YEAR#${year}#SESSION#${date}` },
+  });
+  const expressionAttributeNames = JSON.stringify({
+    "#status": "status",
+    "#updatedAt": "updatedAt",
+    "#startedAt": "startedAt",
+  });
+  const expressionAttributeValues = JSON.stringify({
+    ":status": { S: "IN_PROGRESS" },
+    ":updatedAt": { S: now },
+    ":startedAt": { S: now },
+  });
+
+  await runAws(
+    [
+      "dynamodb",
+      "update-item",
+      "--table-name",
+      config.dynamoTableName,
+      "--key",
+      key,
+      "--update-expression",
+      "SET #status = :status, #updatedAt = :updatedAt, #startedAt = :startedAt",
+      "--expression-attribute-names",
+      expressionAttributeNames,
+      "--expression-attribute-values",
+      expressionAttributeValues,
+      "--condition-expression",
+      "attribute_exists(PK) AND attribute_exists(SK)",
+    ],
+    config.awsRegion,
+  );
+};
+
+const loadAvatarCatalog = async ({ baseUrl, manifestPath }) => {
+  const manifestUrl = new URL(manifestPath, `${baseUrl.replace(/\/$/, "")}/`);
+  const response = await fetch(manifestUrl);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load avatar catalog: ${response.status} ${manifestUrl}`,
+    );
+  }
+  const manifest = await response.json();
+  const items = Array.isArray(manifest?.items) ? manifest.items : [];
+  return {
+    manifestUrl: manifestUrl.toString(),
+    items: items
+      .filter((item) => item?.status === "active")
+      .sort((left, right) => {
+        if ((left.sortOrder ?? 0) !== (right.sortOrder ?? 0)) {
+          return (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+        }
+        return String(left.key ?? "").localeCompare(String(right.key ?? ""));
+      }),
+  };
+};
+
+const resolveCatalogImageUrl = (manifestUrl, imagePath) => {
+  if (!imagePath) {
+    return "";
+  }
+  return new URL(imagePath, manifestUrl).toString();
+};
+
+const resolveAvatarAssignments = ({ manifestUrl, items, managedStudents }) => {
+  if (items.length < managedStudents.length) {
+    throw new Error(
+      `Avatar catalog has only ${items.length} active avatars; ${managedStudents.length} are required.`,
+    );
+  }
+
+  return managedStudents.reduce((map, studentSpec, index) => {
+    const item = items[index];
+    map[studentSpec.key] = {
+      key: item.key,
+      name: item.name,
+      coinCost: item.coinCost ?? 0,
+      badgeUrl: resolveCatalogImageUrl(manifestUrl, item.images?.badge),
+      avatarUrl: resolveCatalogImageUrl(manifestUrl, item.images?.avatar),
+      group: item.group,
+      type: item.type,
+    };
+    return map;
+  }, {});
+};
+
+const resolveMedalLevel = (points) => {
+  const matched = medalLevels.find((level) => points >= level.minPoints);
+  return matched?.level ?? 1;
+};
+
+const syncStudentCoins = async ({
+  api,
+  studentId,
+  targetCoins,
+  grantedBy,
+}) => {
+  const current = await getStudentCoins(api, studentId);
+  const currentCoins = current?.coins ?? 0;
+  const delta = targetCoins - currentCoins;
+  if (delta === 0) {
+    return targetCoins;
+  }
+
+  await api.post(`/students/${encodeURIComponent(studentId)}/coins`, {
+    amount: delta,
+    reason: "MANUAL",
+    note: "Reset image fixture coin balance",
+    grantedBy,
+  });
+  return targetCoins;
+};
+
+const syncStudentRankPoints = async ({
+  api,
+  studentId,
+  targetPoints,
+  grantedBy,
+}) => {
+  const current = await getStudentRank(api, studentId);
+  const currentPoints = current?.totalPoints ?? 0;
+  const delta = targetPoints - currentPoints;
+  if (delta === 0) {
+    return targetPoints;
+  }
+
+  await api.post(`/students/${encodeURIComponent(studentId)}/rank-points`, {
+    unit: 1,
+    amount: delta,
+    reason: "MANUAL",
+    note: "Reset image fixture rank points",
+    grantedBy,
+  });
+  return targetPoints;
+};
+
+const ensureAvatarSelection = async ({
+  api,
+  studentId,
+  studentSpec,
+  preferredAvatar,
+  fallbackAvatars,
+}) => {
+  const avatarState = await getStudentAvatars(api, studentId);
+  const purchasedAvatarIds = Array.isArray(avatarState?.purchased)
+    ? avatarState.purchased
+        .map((item) => item?.avatarId)
+        .filter((item) => typeof item === "string" && item.length > 0)
+    : [];
+  const currentCatalogAvatar = fallbackAvatars.find(
+    (candidate) => candidate.key === avatarState?.activeAvatar,
+  );
+
+  let selectedAvatar = preferredAvatar;
+  if (
+    avatarState?.activeAvatar === preferredAvatar.key &&
+    preferredAvatar.badgeUrl
+  ) {
+    await updateStudentProfile({
+      api,
+      studentId,
+      studentSpec,
+      logo: await buildStudentAvatarLogo(preferredAvatar),
+    });
+    return preferredAvatar;
+  }
+
+  if (currentCatalogAvatar?.badgeUrl) {
+    await updateStudentProfile({
+      api,
+      studentId,
+      studentSpec,
+      logo: await buildStudentAvatarLogo(currentCatalogAvatar),
+    });
+    return currentCatalogAvatar;
+  }
+
+  if (purchasedAvatarIds.includes(preferredAvatar.key)) {
+    const alternateAvatar = fallbackAvatars.find(
+      (candidate) =>
+        candidate.key !== avatarState?.activeAvatar &&
+        !purchasedAvatarIds.includes(candidate.key),
+    );
+    if (alternateAvatar) {
+      selectedAvatar = alternateAvatar;
+    }
+  }
+
+  await syncStudentCoins({
+    api,
+    studentId,
+    targetCoins: studentSpec.targetCoins + selectedAvatar.coinCost,
+    grantedBy: "codex-image-fixtures",
+  });
+
+  if (!purchasedAvatarIds.includes(selectedAvatar.key)) {
+    await api.post(
+      `/students/${encodeURIComponent(studentId)}/avatars/purchase`,
+      {
+        avatarId: selectedAvatar.key,
+        cost: selectedAvatar.coinCost,
+      },
+    );
+  }
+
+  await syncStudentCoins({
+    api,
+    studentId,
+    targetCoins: studentSpec.targetCoins,
+    grantedBy: "codex-image-fixtures",
+  });
+
+  await updateStudentProfile({
+    api,
+    studentId,
+    studentSpec,
+    logo: await buildStudentAvatarLogo(selectedAvatar),
+  });
+
+  return selectedAvatar;
+};
+
+const buildClassMemberships = async ({ api, schoolId, state, classSpecs }) => {
+  const memberships = {};
+
+  for (const classSpec of classSpecs) {
+    const classId = state.classes[classSpec.key]?.classId;
+    if (!classId) {
+      continue;
+    }
+    const classInfo = await getSchoolClass(api, schoolId, classId);
+    const students = await getSchoolClassStudents(api, schoolId, classId);
+    memberships[classSpec.key] = {
+      classId,
+      name: classInfo?.name ?? classSpec.name,
+      teacherId: classInfo?.teacherId ?? "",
+      studentIds: students
+        .map((item) => item.entityId)
+        .filter((item) => typeof item === "string" && item.length > 0),
+    };
+  }
+
+  return memberships;
+};
+
+const renderFixtureManual = ({ generatedAt, config, summary }) => {
+  const teacherClasses = summary.teacher.classes.length
+    ? summary.teacher.classes.join(", ")
+    : "-";
+  const teacherAvatarCell = summary.teacher.avatar?.logo
+    ? `<img src="${summary.teacher.avatar.logo}" alt="${summary.teacher.name}" width="40" height="40"><br>${summary.teacher.avatar.name ?? "Teacher Logo"}`
+    : summary.teacher.avatar?.name ?? "-";
+  const teacherAccount = summary.teacher.email || summary.teacher.accountId || "-";
+  const studentRows = summary.students
+    .map((student) => {
+      const classes = student.classes.length ? student.classes.join("<br>") : "-";
+      const parent = student.parent
+        ? `${student.parent.name} (${student.parent.email || student.parent.accountId})`
+        : "-";
+      const avatarCell = student.avatar.logo
+        ? `<img src="${student.avatar.logo}" alt="${student.avatar.key || student.name}" width="40" height="40"><br>${student.avatar.name ?? student.avatar.key ?? "-"}`
+        : student.avatar.name ?? student.avatar.key ?? "-";
+
+      return `| ${student.name} | Student | ${avatarCell} | ${classes} | ${parent} | ${student.points} | ${student.coins} | Lv.${student.medalLevel} |`;
+    })
+    .join("\n");
+
+  return `---
+title: Test Users
+lang: ja
+tag: manual
+version: 0.1.0
+---
+
+# 画像取得用テストユーザー
+
+最終更新: ${generatedAt}
+
+## 概要
+
+- 対象 schoolId: \`${config.schoolId}\`
+- 教師 1 名、生徒 8 名、親グループ \`3 / 2 / 1 / 1 / 1\`
+- 生徒アバターはアバター購入画面の catalog から選んだ購入済みアバターを設定
+- メダルレベルはランクポイント合計から算出しています
+
+## 教師
+
+| 名前 | Role | Avatar | 所属クラス | アカウント | 初期ポイント | 初期coin | メダルレベル |
+|---|---|---|---|---|---:|---:|---|
+| ${summary.teacher.name} | Teacher | ${teacherAvatarCell} | ${teacherClasses} | ${teacherAccount} | - | - | - |
+
+## 生徒
+
+| 名前 | Role | Avatar | 所属クラス | 親アカウント | 初期ポイント | 初期coin | メダルレベル |
+|---|---|---|---|---|---:|---:|---|
+${studentRows}
+`;
+};
+
+const buildFixtureSummary = async ({
+  api,
+  config,
+  state,
+  managedStudents,
+  classSpecs,
+  avatarAssignments,
+}) => {
+  const generatedAt = new Date().toISOString();
+  const users = await getUsers(api);
+  const schoolStudents = await getSchoolStudents(api, config.schoolId);
+  const classMemberships = await buildClassMemberships({
+    api,
+    schoolId: config.schoolId,
+    state,
+    classSpecs,
+  });
+  const teacherClasses = Object.values(classMemberships)
+    .filter((classItem) => classItem.teacherId === state.teacher?.accountId)
+    .map((classItem) => classItem.name);
+  const teacherAccount =
+    users.find((item) => item.accountId === state.teacher?.accountId) ?? null;
+
+  const students = [];
+  for (const studentSpec of managedStudents) {
+    const studentId = state.students[studentSpec.key]?.studentId;
+    if (!studentId) {
+      continue;
+    }
+
+    const studentRecord =
+      schoolStudents.find((item) => item.entityId === studentId) ?? null;
+    const coins = await getStudentCoins(api, studentId);
+    const rank = await getStudentRank(api, studentId);
+    const avatars = await getStudentAvatars(api, studentId);
+    const classNames = Object.values(classMemberships)
+      .filter((classItem) => classItem.studentIds.includes(studentId))
+      .map((classItem) => classItem.name);
+    const activeAvatarKey = avatars?.activeAvatar ?? "";
+    const assignedAvatar = [
+      avatarAssignments[studentSpec.key],
+      ...Object.values(avatarAssignments),
+    ].find((item) => item?.key === activeAvatarKey) ?? avatarAssignments[studentSpec.key];
+    const parent = state.parents[studentSpec.parentKey] ?? null;
+    const totalPoints = rank?.totalPoints ?? 0;
+
+    students.push({
+      key: studentSpec.key,
+      studentId,
+      name: studentRecord?.name ?? studentSpec.name,
+      classes: classNames,
+      parent,
+      points: totalPoints,
+      coins: coins?.coins ?? 0,
+      medalLevel: resolveMedalLevel(totalPoints),
+      avatar: {
+        key: activeAvatarKey || assignedAvatar?.key || "",
+        name: assignedAvatar?.name ?? activeAvatarKey,
+        badgeUrl:
+          assignedAvatar?.badgeUrl ??
+          (typeof studentRecord?.logo === "string" ? studentRecord.logo : ""),
+        avatarUrl: assignedAvatar?.avatarUrl ?? "",
+        logo:
+          typeof studentRecord?.logo === "string" ? studentRecord.logo : "",
+      },
+    });
+  }
+
+  return {
+    generatedAt,
+    schoolId: config.schoolId,
+    teacher: {
+      ...state.teacher,
+      classes: teacherClasses,
+      avatar: {
+        name: "Teacher Logo",
+        logo: typeof teacherAccount?.logo === "string" ? teacherAccount.logo : "",
+      },
+    },
+    students,
+    outputs: {
+      manualPath: manualOutputPath,
+      summaryPath: summaryOutputPath,
+    },
+  };
+};
+
+const writeFixtureOutputs = async ({ config, state, summary }) => {
+  const markdown = renderFixtureManual({
+    generatedAt: summary.generatedAt,
+    config,
+    summary,
+  });
+
+  await writeTextFile(manualOutputPath, markdown);
+  await writeJsonFile(summaryOutputPath, summary);
+
+  state.outputs = {
+    manualPath: manualOutputPath,
+    summaryPath: summaryOutputPath,
+    generatedAt: summary.generatedAt,
+  };
+};
+
 const ensureInitialFixtures = async ({ api, config, state }) => {
   const school = await getSchool(api, config.schoolId);
   if (!school) {
     throw new Error(`School not found: ${config.schoolId}`);
   }
 
-  const { teacherAccountId, companyId: teacherCompanyId } =
-    await ensureTeacherAndParents({ api, config, state });
-  const companyId = school.companyId ?? teacherCompanyId;
+  const companyId = school.companyId;
   if (!companyId) {
-    throw new Error("companyId could not be resolved from school or teacher.");
+    throw new Error("companyId could not be resolved from school.");
   }
+  const { teacherAccountId, companyId: teacherCompanyId } =
+    await ensureTeacherAndParents({
+      api,
+      config,
+      state,
+      schoolId: config.schoolId,
+      companyId,
+    });
+  const resolvedCompanyId = teacherCompanyId ?? companyId;
 
   const managedStudents = resolveManagedStudents(config.prefix);
   const managedClasses = resolveManagedClasses(config.prefix);
+  const avatarCatalog = await loadAvatarCatalog({
+    baseUrl: config.avatarCatalogBaseUrl,
+    manifestPath: config.avatarManifestPath,
+  });
+  const avatarAssignments = resolveAvatarAssignments({
+    manifestUrl: avatarCatalog.manifestUrl,
+    items: avatarCatalog.items,
+    managedStudents,
+  });
 
   for (const studentSpec of managedStudents) {
     const parentAccountId = state.parents[studentSpec.parentKey]?.accountId;
@@ -669,15 +1618,25 @@ const ensureInitialFixtures = async ({ api, config, state }) => {
     const studentId = await ensureStudent({
       api,
       schoolId: config.schoolId,
-      companyId,
+      companyId: resolvedCompanyId,
       state,
       studentSpec,
       parentAccountId,
     });
-    await updateStudentAvatar({
+
+    await syncStudentRankPoints({
+      api,
+      studentId,
+      targetPoints: studentSpec.targetPoints,
+      grantedBy: "codex-image-fixtures",
+    });
+
+    await ensureAvatarSelection({
       api,
       studentId,
       studentSpec,
+      preferredAvatar: avatarAssignments[studentSpec.key],
+      fallbackAvatars: Object.values(avatarAssignments),
     });
   }
 
@@ -733,6 +1692,13 @@ const ensureInitialFixtures = async ({ api, config, state }) => {
       teacherId,
       classSpec,
     });
+    if (classSpec.key === "primary" && teacherId) {
+      await markManagedClassSessionInProgress({
+        config,
+        schoolId: config.schoolId,
+        classId,
+      });
+    }
   }
 
   const year = Number(toIsoDateJst().slice(0, 4));
@@ -748,6 +1714,16 @@ const ensureInitialFixtures = async ({ api, config, state }) => {
       studentIndex: studentSpec.studentIndex,
     });
   }
+
+  const summary = await buildFixtureSummary({
+    api,
+    config,
+    state,
+    managedStudents,
+    classSpecs: managedClasses,
+    avatarAssignments,
+  });
+  await writeFixtureOutputs({ config, state, summary });
 };
 
 const setTeacherMode = async ({ api, config, state, mode }) => {
@@ -781,13 +1757,28 @@ const setTeacherMode = async ({ api, config, state, mode }) => {
         teacherId: nextTeacherId,
       },
     });
-    await replaceManagedClassSessions({
-      api,
-      schoolId: config.schoolId,
-      classId,
-      teacherId: nextTeacherId,
-      classSpec,
-    });
+    try {
+      await replaceManagedClassSessions({
+        api,
+        schoolId: config.schoolId,
+        classId,
+        teacherId: nextTeacherId,
+        classSpec,
+      });
+      if (classSpec.key === "primary" && nextTeacherId) {
+        await markManagedClassSessionInProgress({
+          config,
+          schoolId: config.schoolId,
+          classId,
+        });
+      }
+    } catch (error) {
+      console.warn(
+        `Skipping session refresh for class ${classId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 };
 
@@ -827,6 +1818,29 @@ const setStudentMode = async ({ api, config, state, mode }) => {
   }
 };
 
+const refreshOutputs = async ({ api, config, state }) => {
+  const managedStudents = resolveManagedStudents(config.prefix);
+  const managedClasses = resolveManagedClasses(config.prefix);
+  const avatarCatalog = await loadAvatarCatalog({
+    baseUrl: config.avatarCatalogBaseUrl,
+    manifestPath: config.avatarManifestPath,
+  });
+  const avatarAssignments = resolveAvatarAssignments({
+    manifestUrl: avatarCatalog.manifestUrl,
+    items: avatarCatalog.items,
+    managedStudents,
+  });
+  const summary = await buildFixtureSummary({
+    api,
+    config,
+    state,
+    managedStudents,
+    classSpecs: managedClasses,
+    avatarAssignments,
+  });
+  await writeFixtureOutputs({ config, state, summary });
+};
+
 const printStatus = ({ config, state }) => {
   const summary = {
     configPath: config.path,
@@ -835,6 +1849,7 @@ const printStatus = ({ config, state }) => {
     parents: state.parents,
     students: state.students,
     classes: state.classes,
+    outputs: state.outputs ?? {},
   };
   console.log(JSON.stringify(summary, null, 2));
 };
@@ -863,7 +1878,7 @@ const main = async () => {
 
   const bearerToken = await resolveBearerToken(config.value.baseUrl);
   const api = createApiClient({
-    baseUrl: config.value.baseUrl,
+    apiBaseUrl: config.value.apiBaseUrl,
     bearerToken,
   });
 
@@ -886,6 +1901,11 @@ const main = async () => {
       state,
       mode,
     });
+    await refreshOutputs({
+      api,
+      config: config.value,
+      state,
+    });
     await saveState(statePath, state);
     printStatus({ config, state });
     return;
@@ -899,6 +1919,11 @@ const main = async () => {
       state,
       mode,
     });
+    await refreshOutputs({
+      api,
+      config: config.value,
+      state,
+    });
     await saveState(statePath, state);
     printStatus({ config, state });
     return;
@@ -908,6 +1933,10 @@ const main = async () => {
 };
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
+  if (error instanceof Error) {
+    console.error(error.stack || error.message);
+  } else {
+    console.error(String(error));
+  }
   process.exitCode = 1;
 });

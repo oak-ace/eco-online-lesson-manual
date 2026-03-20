@@ -1,45 +1,45 @@
 {
-  "baseUrl": "https://local.eco-online.site:8080",
-  "apiBaseUrl": "https://local.eco-online.site:8080",
+  "baseUrl": "https://develop.d1ldclq3p5i259.amplifyapp.com",
+  "apiBaseUrl": "https://4802hd5j8l.execute-api.ap-northeast-1.amazonaws.com",
   "schoolId": "school-ace-001",
   "prefix": "IMGFIX",
   "awsRegion": "ap-northeast-1",
-  "cognitoUserPoolId": "ap-northeast-1_xxxxxxxx",
-  "avatarCatalogBaseUrl": "https://avatars.eco-online.site",
+  "cognitoUserPoolId": "ap-northeast-1_D2Oj1SM0p",
+  "avatarCatalogBaseUrl": "https://d2ixnu96npv3ur.cloudfront.net",
   "avatarManifestPath": "/v1/avatars/manifest.json",
   "teacher": {
-    "email": "imgfix-teacher@example.com",
+    "email": "imgfix-teacher@ace-software.com",
     "name": "IMGFIX Teacher",
     "createIfMissing": true
   },
   "parents": [
     {
       "key": "parent-a",
-      "email": "imgfix-parent-a@example.com",
+      "email": "imgfix-parent-a@ace-software.com",
       "name": "IMGFIX Parent A",
       "createIfMissing": true
     },
     {
       "key": "parent-b",
-      "email": "imgfix-parent-b@example.com",
+      "email": "imgfix-parent-b@ace-software.com",
       "name": "IMGFIX Parent B",
       "createIfMissing": true
     },
     {
       "key": "parent-c",
-      "email": "imgfix-parent-c@example.com",
+      "email": "imgfix-parent-c@ace-software.com",
       "name": "IMGFIX Parent C",
       "createIfMissing": true
     },
     {
       "key": "parent-d",
-      "email": "imgfix-parent-d@example.com",
+      "email": "imgfix-parent-d@ace-software.com",
       "name": "IMGFIX Parent D",
       "createIfMissing": true
     },
     {
       "key": "parent-e",
-      "email": "imgfix-parent-e@example.com",
+      "email": "imgfix-parent-e@ace-software.com",
       "name": "IMGFIX Parent E",
       "createIfMissing": true
     }

@@ -22,5 +22,9 @@ npm run setup:image-fixtures -- status
 ```
 
 注意:
-- 教師アカウントと親アカウントは既存ユーザーを前提にしています
+- 教師/親は `createIfMissing: true` を設定すると専用アカウントを API で自動作成します
+- Cognito の固定パスワードは `E2E_LOGIN_PASSWORD` を使って揃えます。`cognitoUserPoolId` を設定し、AWS SSO 済みの状態で実行します
 - 生徒8名と画像取得用クラスは、スクリプトが専用名で作成・再利用します
+- `init` 実行後、初期ユーザー一覧を `docs/ja/manual/test-users.md` と
+  `tools/manual-capture/.artifacts/dev-image-fixtures-summary.json` に出力します
+- 生徒アバターは avatar catalog から選んだ購入済みアバターを active avatar として設定します
