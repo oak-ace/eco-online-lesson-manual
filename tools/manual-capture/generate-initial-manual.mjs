@@ -8,6 +8,7 @@ import {
   readdir,
   readFile,
   rm,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import { chromium } from "playwright";
@@ -22,6 +23,13 @@ const artifactsRoot = path.join(
   "tools",
   "manual-capture",
   ".artifacts",
+);
+const manualCaptureLockPath = path.join(artifactsRoot, "manual-capture.lock");
+const trackedFixtureSummaryPath = path.join(
+  repoRoot,
+  "tools",
+  "manual-capture",
+  "dev-image-fixtures-summary.json",
 );
 const fixtureSummaryPath = path.join(
   artifactsRoot,
@@ -47,13 +55,20 @@ const localPackageJson = path.join(repoRoot, "package.json");
 const apiGatewayBaseUrl =
   process.env.ECO_API_BASE_URL ??
   "https://4802hd5j8l.execute-api.ap-northeast-1.amazonaws.com/api";
+const allowParallelManualCapture =
+  process.env.MANUAL_CAPTURE_ALLOW_PARALLEL === "1" ||
+  process.env.MANUAL_CAPTURE_ALLOW_PARALLEL === "true";
 
 const loadFixtureSummary = () => {
-  try {
-    return JSON.parse(readFileSync(fixtureSummaryPath, "utf8"));
-  } catch {
-    return null;
+  for (const summaryPath of [trackedFixtureSummaryPath, fixtureSummaryPath]) {
+    try {
+      return JSON.parse(readFileSync(summaryPath, "utf8"));
+    } catch {
+      continue;
+    }
   }
+
+  return null;
 };
 
 const loadFixtureState = () => {
@@ -100,6 +115,59 @@ if (!baseUrl || !teacherEmail || !parentEmail || !password) {
 }
 
 const allowedCorsMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
+
+const acquireManualCaptureLock = async (scriptName) => {
+  if (allowParallelManualCapture) {
+    return async () => {};
+  }
+
+  await mkdir(artifactsRoot, { recursive: true });
+
+  try {
+    await writeFile(
+      manualCaptureLockPath,
+      JSON.stringify(
+        {
+          pid: process.pid,
+          scriptName,
+          startedAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+      { encoding: "utf8", flag: "wx" },
+    );
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") {
+      const existing = readFileSync(manualCaptureLockPath, "utf8");
+      throw new Error(
+        `Another manual-capture run is already active. Remove ${manualCaptureLockPath} only if the previous run is no longer running.\n${existing}`,
+      );
+    }
+    throw error;
+  }
+
+  return async () => {
+    await unlink(manualCaptureLockPath).catch((error) => {
+      if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ENOENT") {
+        throw error;
+      }
+    });
+  };
+};
+
+const logRunContext = (context) => {
+  console.log("[manual-capture] run context");
+  console.log(JSON.stringify(context, null, 2));
+};
+
+const writeLastRunReport = async (report) => {
+  await writeFile(
+    path.join(artifactsRoot, "last-run.json"),
+    JSON.stringify(report, null, 2),
+    "utf8",
+  );
+};
 
 const buildFixtureSessionPayload = (lessonId) => {
   if (typeof lessonId !== "string") {
@@ -2699,121 +2767,151 @@ const generateDocs = async () => {
     failedItems: [],
     generatedPages: [],
     baseUrl,
+    apiGatewayBaseUrl,
     generatedAt: new Date().toISOString(),
+    fixtureLessonId,
+    fixturePrimaryClassId,
+    fixturePrimaryStudentId,
+    fixtureSummaryPath,
+    trackedFixtureSummaryPath,
+    lockPath: allowParallelManualCapture ? null : manualCaptureLockPath,
+    flags: {
+      fixtureOnly,
+      markdownOnly,
+      allowParallelManualCapture,
+    },
   };
+  if (fixtureOnly && markdownOnly) {
+    throw new Error(
+      "MANUAL_GENERATE_FIXTURE_ONLY and MANUAL_GENERATE_MARKDOWN_ONLY cannot both be enabled.",
+    );
+  }
+  logRunContext({
+    script: "generate-initial-manual",
+    baseUrl,
+    apiGatewayBaseUrl,
+    fixtureLessonId,
+    fixturePrimaryClassId,
+    fixturePrimaryStudentId,
+    flowStepTimeoutMs,
+    flags: report.flags,
+  });
+  const releaseLock = await acquireManualCaptureLock("generate-initial-manual");
   const existingPageImages = new Set();
-  for (const pageSpec of pageSpecs) {
-    try {
-      await access(path.join(imagesRoot, pageSpec.imageName));
-      existingPageImages.add(pageSpec.slug);
-    } catch (error) {
-      if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ENOENT") {
-        throw error;
+  try {
+    for (const pageSpec of pageSpecs) {
+      try {
+        await access(path.join(imagesRoot, pageSpec.imageName));
+        existingPageImages.add(pageSpec.slug);
+      } catch (error) {
+        if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ENOENT") {
+          throw error;
+        }
       }
     }
-  }
 
-  if (fixtureOnly) {
-    await ensureOutputDirs();
-    if (fixtureSummary) {
-      await writeFile(
-        path.join(docsRoot, "ja", "manual", "test-users.md"),
-        renderFixtureManual({ version, lang: "ja" }),
-        "utf8",
-      );
-      await writeFile(
-        path.join(docsRoot, "en", "manual", "test-users.md"),
-        renderFixtureManual({ version, lang: "en" }),
-        "utf8",
-      );
-      report.generatedPages.push("test-users");
-    }
-    await writeFile(
-      path.join(artifactsRoot, "last-run.json"),
-      JSON.stringify(report, null, 2),
-      "utf8",
-    );
-    await validateGeneratedDocs({
-      reusedExistingImages: true,
-      reusedAssets: ["fixture-only markdown output"],
-    });
-    return;
-  }
-
-  if (markdownOnly) {
-    await ensureOutputDirs();
-    for (const pageSpec of pageSpecs) {
-      for (const lang of ["ja", "en"]) {
-        const pageContext = await loadPageContext(pageSpec, lang);
+    if (fixtureOnly) {
+      await ensureOutputDirs();
+      if (fixtureSummary) {
         await writeFile(
-          path.join(docsRoot, lang, "manual", `${pageSpec.slug}.md`),
-          renderMarkdown({ pageSpec, version, pageContext, lang }),
+          path.join(docsRoot, "ja", "manual", "test-users.md"),
+          renderFixtureManual({ version, lang: "ja" }),
           "utf8",
         );
+        await writeFile(
+          path.join(docsRoot, "en", "manual", "test-users.md"),
+          renderFixtureManual({ version, lang: "en" }),
+          "utf8",
+        );
+        report.generatedPages.push("test-users");
       }
-      report.generatedPages.push(pageSpec.slug);
+      report.completedAt = new Date().toISOString();
+      await writeLastRunReport(report);
+      await validateGeneratedDocs({
+        reusedExistingImages: true,
+        reusedAssets: ["fixture-only markdown output"],
+      });
+      return;
     }
 
-    await writeFile(path.join(docsRoot, "_config.yml"), renderConfig(), "utf8");
-    await writeFile(path.join(docsRoot, "index.md"), renderRootIndex(), "utf8");
-    await writeFile(
-      path.join(docsRoot, "ja", "index.md"),
-      renderLocaleIndex({ version, lang: "ja" }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(docsRoot, "ja", "manual", "index.md"),
-      renderManualIndex({ version, lang: "ja" }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(docsRoot, "en", "index.md"),
-      renderLocaleIndex({ version, lang: "en" }),
-      "utf8",
-    );
-    await writeFile(
-      path.join(docsRoot, "en", "manual", "index.md"),
-      renderManualIndex({ version, lang: "en" }),
-      "utf8",
-    );
-    if (fixtureSummary) {
+    if (markdownOnly) {
+      await ensureOutputDirs();
+      for (const pageSpec of pageSpecs) {
+        for (const lang of ["ja", "en"]) {
+          const pageContext = await loadPageContext(pageSpec, lang);
+          await writeFile(
+            path.join(docsRoot, lang, "manual", `${pageSpec.slug}.md`),
+            renderMarkdown({ pageSpec, version, pageContext, lang }),
+            "utf8",
+          );
+        }
+        report.generatedPages.push(pageSpec.slug);
+      }
+
       await writeFile(
-        path.join(docsRoot, "ja", "manual", "test-users.md"),
-        renderFixtureManual({ version, lang: "ja" }),
+        path.join(docsRoot, "_config.yml"),
+        renderConfig(),
         "utf8",
       );
       await writeFile(
-        path.join(docsRoot, "en", "manual", "test-users.md"),
-        renderFixtureManual({ version, lang: "en" }),
+        path.join(docsRoot, "index.md"),
+        renderRootIndex(),
         "utf8",
       );
-      report.generatedPages.push("test-users");
+      await writeFile(
+        path.join(docsRoot, "ja", "index.md"),
+        renderLocaleIndex({ version, lang: "ja" }),
+        "utf8",
+      );
+      await writeFile(
+        path.join(docsRoot, "ja", "manual", "index.md"),
+        renderManualIndex({ version, lang: "ja" }),
+        "utf8",
+      );
+      await writeFile(
+        path.join(docsRoot, "en", "index.md"),
+        renderLocaleIndex({ version, lang: "en" }),
+        "utf8",
+      );
+      await writeFile(
+        path.join(docsRoot, "en", "manual", "index.md"),
+        renderManualIndex({ version, lang: "en" }),
+        "utf8",
+      );
+      if (fixtureSummary) {
+        await writeFile(
+          path.join(docsRoot, "ja", "manual", "test-users.md"),
+          renderFixtureManual({ version, lang: "ja" }),
+          "utf8",
+        );
+        await writeFile(
+          path.join(docsRoot, "en", "manual", "test-users.md"),
+          renderFixtureManual({ version, lang: "en" }),
+          "utf8",
+        );
+        report.generatedPages.push("test-users");
+      }
+      report.completedAt = new Date().toISOString();
+      await writeLastRunReport(report);
+      await validateGeneratedDocs({
+        reusedExistingImages: true,
+        reusedAssets: ["markdown-only output"],
+      });
+      return;
     }
-    await writeFile(
-      path.join(artifactsRoot, "last-run.json"),
-      JSON.stringify(report, null, 2),
-      "utf8",
-    );
-    await validateGeneratedDocs({
-      reusedExistingImages: true,
-      reusedAssets: ["markdown-only output"],
-    });
-    return;
-  }
 
-  await cleanOutputDirs();
-  await ensureOutputDirs();
+    await cleanOutputDirs();
+    await ensureOutputDirs();
 
-  const browser = await chromium.launch({ headless: true });
-  try {
-    await parentFlow(browser, report);
-    await teacherFlow(browser, report);
-    await sharedFlow(browser, report);
-    await lessonFlow(browser, report);
-  } finally {
-    await browser.close();
-  }
-
+    const browser = await chromium.launch({ headless: true });
+    try {
+      await parentFlow(browser, report);
+      await teacherFlow(browser, report);
+      await sharedFlow(browser, report);
+      await lessonFlow(browser, report);
+    } finally {
+      await browser.close();
+    }
   for (const pageSpec of pageSpecs) {
     for (const lang of ["ja", "en"]) {
       const pageContext = await loadPageContext(pageSpec, lang);
@@ -2862,19 +2960,19 @@ const generateDocs = async () => {
       "utf8",
     );
   }
-  await writeFile(
-    path.join(artifactsRoot, "last-run.json"),
-    JSON.stringify(report, null, 2),
-    "utf8",
-  );
-  const capturedPages = new Set(report.capturedPages ?? []);
-  const reusedAssets = pageSpecs
-    .filter((pageSpec) => existingPageImages.has(pageSpec.slug) && !capturedPages.has(pageSpec.slug))
-    .map((pageSpec) => pageSpec.slug);
-  await validateGeneratedDocs({
-    reusedExistingImages: reusedAssets.length > 0,
-    reusedAssets,
-  });
+    report.completedAt = new Date().toISOString();
+    await writeLastRunReport(report);
+    const capturedPages = new Set(report.capturedPages ?? []);
+    const reusedAssets = pageSpecs
+      .filter((pageSpec) => existingPageImages.has(pageSpec.slug) && !capturedPages.has(pageSpec.slug))
+      .map((pageSpec) => pageSpec.slug);
+    await validateGeneratedDocs({
+      reusedExistingImages: reusedAssets.length > 0,
+      reusedAssets,
+    });
+  } finally {
+    await releaseLock();
+  }
 };
 
 await generateDocs();

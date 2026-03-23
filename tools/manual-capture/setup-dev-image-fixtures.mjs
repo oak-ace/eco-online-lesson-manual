@@ -4,7 +4,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { chromium } from "playwright";
 
@@ -12,6 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..");
 const stateDir = path.join(__dirname, ".state");
 const artifactDir = path.join(__dirname, ".artifacts");
+const manualCaptureLockPath = path.join(artifactDir, "manual-capture.lock");
 const docsDir = path.join(repoRoot, "docs", "ja", "manual");
 const defaultConfigPath = path.join(
   __dirname,
@@ -19,10 +21,15 @@ const defaultConfigPath = path.join(
 );
 const defaultStatePath = path.join(stateDir, "dev-image-fixtures.state.json");
 const manualOutputPath = path.join(docsDir, "test-users.md");
+const trackedSummaryOutputPath = path.join(
+  __dirname,
+  "dev-image-fixtures-summary.json",
+);
 const summaryOutputPath = path.join(
   artifactDir,
   "dev-image-fixtures-summary.json",
 );
+const setupLastRunPath = path.join(artifactDir, "setup-dev-image-fixtures.last-run.json");
 const defaultAvatarCatalogBaseUrl =
   process.env.ECO_AVATAR_ASSET_BASE_URL ??
   process.env.VITE_ASSET_BASE_URL ??
@@ -39,6 +46,9 @@ const defaultCognitoUserPoolId =
   "";
 const defaultDynamoTableName =
   process.env.ECO_DYNAMODB_TABLE_PRIMARY ?? "eco-online";
+const allowParallelManualCapture =
+  process.env.MANUAL_CAPTURE_ALLOW_PARALLEL === "1" ||
+  process.env.MANUAL_CAPTURE_ALLOW_PARALLEL === "true";
 const execFileAsync = promisify(execFile);
 const medalLevels = [
   { level: 5, minPoints: 400 },
@@ -230,6 +240,55 @@ const writeJsonFile = async (targetPath, value) => {
 const writeTextFile = async (targetPath, value) => {
   await mkdir(path.dirname(targetPath), { recursive: true });
   await writeFile(targetPath, value, "utf8");
+};
+
+const acquireManualCaptureLock = async (scriptName) => {
+  if (allowParallelManualCapture) {
+    return async () => {};
+  }
+
+  await mkdir(artifactDir, { recursive: true });
+
+  try {
+    await writeFile(
+      manualCaptureLockPath,
+      JSON.stringify(
+        {
+          pid: process.pid,
+          scriptName,
+          startedAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+      { encoding: "utf8", flag: "wx" },
+    );
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") {
+      const existing = readFileSync(manualCaptureLockPath, "utf8");
+      throw new Error(
+        `Another manual-capture run is already active. Remove ${manualCaptureLockPath} only if the previous run is no longer running.\n${existing}`,
+      );
+    }
+    throw error;
+  }
+
+  return async () => {
+    await unlink(manualCaptureLockPath).catch((error) => {
+      if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ENOENT") {
+        throw error;
+      }
+    });
+  };
+};
+
+const logSetupContext = (context) => {
+  console.log("[manual-capture] setup context");
+  console.log(JSON.stringify(context, null, 2));
+};
+
+const writeSetupLastRun = async (run) => {
+  await writeJsonFile(setupLastRunPath, run);
 };
 
 const toIsoDateJst = (date = new Date()) => jstFormatter.format(date);
@@ -1556,6 +1615,7 @@ const buildFixtureSummary = async ({
     students,
     outputs: {
       manualPath: manualOutputPath,
+      trackedSummaryPath: trackedSummaryOutputPath,
       summaryPath: summaryOutputPath,
     },
   };
@@ -1569,10 +1629,12 @@ const writeFixtureOutputs = async ({ config, state, summary }) => {
   });
 
   await writeTextFile(manualOutputPath, markdown);
+  await writeJsonFile(trackedSummaryOutputPath, summary);
   await writeJsonFile(summaryOutputPath, summary);
 
   state.outputs = {
     manualPath: manualOutputPath,
+    trackedSummaryPath: trackedSummaryOutputPath,
     summaryPath: summaryOutputPath,
     generatedAt: summary.generatedAt,
   };
@@ -1870,66 +1932,104 @@ const main = async () => {
   const config = await loadConfig(options.config);
   const statePath = options.state ?? defaultStatePath;
   const state = await loadState(statePath);
+  const run = {
+    script: "setup-dev-image-fixtures",
+    command,
+    mode: mode || null,
+    startedAt: new Date().toISOString(),
+    configPath: config.path,
+    statePath,
+    baseUrl: config.value.baseUrl,
+    apiBaseUrl: config.value.apiBaseUrl,
+    schoolId: config.value.schoolId,
+    awsProfile: process.env.AWS_PROFILE ?? null,
+    awsRegion: config.value.awsRegion,
+    lockPath: allowParallelManualCapture ? null : manualCaptureLockPath,
+  };
+  logSetupContext(run);
 
   if (command === "status") {
+    run.result = "success";
+    run.completedAt = new Date().toISOString();
+    await writeSetupLastRun(run);
     printStatus({ config, state });
     return;
   }
 
-  const bearerToken = await resolveBearerToken(config.value.baseUrl);
-  const api = createApiClient({
-    apiBaseUrl: config.value.apiBaseUrl,
-    bearerToken,
-  });
-
-  if (command === "init") {
-    await ensureInitialFixtures({
-      api,
-      config: config.value,
-      state,
+  const releaseLock = await acquireManualCaptureLock("setup-dev-image-fixtures");
+  try {
+    const bearerToken = await resolveBearerToken(config.value.baseUrl);
+    const api = createApiClient({
+      apiBaseUrl: config.value.apiBaseUrl,
+      bearerToken,
     });
-    await saveState(statePath, state);
-    printStatus({ config, state });
-    return;
+
+    if (command === "init") {
+      await ensureInitialFixtures({
+        api,
+        config: config.value,
+        state,
+      });
+      await saveState(statePath, state);
+      run.result = "success";
+      run.completedAt = new Date().toISOString();
+      await writeSetupLastRun(run);
+      printStatus({ config, state });
+      return;
+    }
+
+    if (command === "teacher-mode") {
+      assertMode(mode);
+      await setTeacherMode({
+        api,
+        config: config.value,
+        state,
+        mode,
+      });
+      await refreshOutputs({
+        api,
+        config: config.value,
+        state,
+      });
+      await saveState(statePath, state);
+      run.result = "success";
+      run.completedAt = new Date().toISOString();
+      await writeSetupLastRun(run);
+      printStatus({ config, state });
+      return;
+    }
+
+    if (command === "student-mode") {
+      assertMode(mode);
+      await setStudentMode({
+        api,
+        config: config.value,
+        state,
+        mode,
+      });
+      await refreshOutputs({
+        api,
+        config: config.value,
+        state,
+      });
+      await saveState(statePath, state);
+      run.result = "success";
+      run.completedAt = new Date().toISOString();
+      await writeSetupLastRun(run);
+      printStatus({ config, state });
+      return;
+    }
+
+    throw new Error(`Unknown command: ${command}`);
+  } catch (error) {
+    run.result = "failed";
+    run.completedAt = new Date().toISOString();
+    run.error = error instanceof Error ? error.message : String(error);
+    await writeSetupLastRun(run);
+    throw error;
+  } finally {
+    await releaseLock();
   }
-
-  if (command === "teacher-mode") {
-    assertMode(mode);
-    await setTeacherMode({
-      api,
-      config: config.value,
-      state,
-      mode,
-    });
-    await refreshOutputs({
-      api,
-      config: config.value,
-      state,
-    });
-    await saveState(statePath, state);
-    printStatus({ config, state });
-    return;
-  }
-
-  if (command === "student-mode") {
-    assertMode(mode);
-    await setStudentMode({
-      api,
-      config: config.value,
-      state,
-      mode,
-    });
-    await refreshOutputs({
-      api,
-      config: config.value,
-      state,
-    });
-    await saveState(statePath, state);
-    printStatus({ config, state });
-    return;
-  }
-
-  throw new Error(`Unknown command: ${command}`);
 };
 
 main().catch((error) => {

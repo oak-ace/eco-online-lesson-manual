@@ -41,6 +41,36 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Fixtures: Init",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "setup:image-fixtures",
+        "--",
+        "init"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Fixtures: Status",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "setup:image-fixtures",
+        "--",
+        "status"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ]
 }

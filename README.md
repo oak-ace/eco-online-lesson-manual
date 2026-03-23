@@ -9,6 +9,9 @@ Publication of the eco-online-lesson manual
 
 画像取得用の実データ設定ヘルパーを追加しています。
 
+運用メモ:
+- `tools/manual-capture/README.md` に、実サーバ Playwright 運用で効くノウハウを整理しています
+
 1. `tools/manual-capture/dev-image-fixtures.config.example.json` を
    `tools/manual-capture/dev-image-fixtures.config.json` としてコピーして編集
 2. 認証は `ECO_API_TEST_BEARER_TOKEN` または `ECO_SETUP_EMAIL` / `ECO_SETUP_PASSWORD` を設定
@@ -26,5 +29,23 @@ npm run setup:image-fixtures -- status
 - Cognito の固定パスワードは `E2E_LOGIN_PASSWORD` を使って揃えます。`cognitoUserPoolId` を設定し、AWS SSO 済みの状態で実行します
 - 生徒8名と画像取得用クラスは、スクリプトが専用名で作成・再利用します
 - `init` 実行後、初期ユーザー一覧を `docs/ja/manual/test-users.md` と
-  `tools/manual-capture/.artifacts/dev-image-fixtures-summary.json` に出力します
+  `tools/manual-capture/dev-image-fixtures-summary.json` に出力します
 - 生徒アバターは avatar catalog から選んだ購入済みアバターを active avatar として設定します
+
+## VS Code Tasks
+
+VS Code からは次の task を手動実行できます。
+
+- `Fixtures: Init`
+- `Fixtures: Status`
+- `Manual: Generate`
+
+運用:
+
+1. `Fixtures: Init` でテストユーザー情報を更新
+2. `tools/manual-capture/dev-image-fixtures-summary.json` を commit
+3. `Manual: Generate` で Pages 用の出力を確認
+
+GitHub Pages の workflow はオンライン初期化を実行せず、commit 済みの
+`tools/manual-capture/dev-image-fixtures-summary.json` を使って
+`test-users` ページを生成します。

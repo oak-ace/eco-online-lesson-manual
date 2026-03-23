@@ -13,6 +13,8 @@
 		"AWS_REGION": "ap-northeast-1",
 		"ECO_BASE_URL": "https://develop.d1ldclq3p5i259.amplifyapp.com",
 		"GIT_REPOSITORY_URL": "https://github.com/oak-ace/eco-online-lesson",
+		"ECO_SETUP_EMAIL": "${localEnv:E2E_ADMIN_EMAIL}",
+		"ECO_SETUP_PASSWORD": "${localEnv:E2E_ADMIN_PASSWORD}",
 		"E2E_TEACHER_EMAIL": "${localEnv:E2E_TEACHER_EMAIL:teacher@ace-software.com}",
 		"E2E_PARENT_EMAIL": "${localEnv:E2E_PARENT_EMAIL:parent@ace-software.com}",
 		"E2E_LOGIN_PASSWORD": "${localEnv:E2E_LOGIN_PASSWORD:}"
