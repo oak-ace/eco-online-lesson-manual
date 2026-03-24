@@ -90,7 +90,8 @@
   },
   "outputs": {
     "manualPath": "/workspaces/eco-online-lesson-manual/docs/ja/manual/test-users.md",
+    "trackedSummaryPath": "/workspaces/eco-online-lesson-manual/tools/manual-capture/dev-image-fixtures-summary.json",
     "summaryPath": "/workspaces/eco-online-lesson-manual/tools/manual-capture/.artifacts/dev-image-fixtures-summary.json",
-    "generatedAt": "2026-03-20T10:35:56.236Z"
+    "generatedAt": "2026-03-23T11:29:39.944Z"
   }
 }

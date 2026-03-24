@@ -6,7 +6,24 @@ tag: report
 
 # Output Errors
 
-Generated At: 2026-03-20T10:43:30.567Z
+Generated At: 2026-03-23T14:54:49.424Z
+
+Note: This output reused existing image assets. Some screenshots may be older than the current markdown output.
+
+Reused asset groups:
+
+- setup-device
+- login
+- home-startup
+- home-avatar
+- shared-select-class
+- shared-startup
+- teacher-lesson
+- home-lesson
+- teacher-panel-none-md
+- teacher-content-vocabulary-particle
+- teacher-content-games
+- teacher-content-student-card-detail
 
 The following broken internal links or missing local assets were found:
 

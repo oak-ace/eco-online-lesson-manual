@@ -58,6 +58,12 @@ const apiGatewayBaseUrl =
 const allowParallelManualCapture =
   process.env.MANUAL_CAPTURE_ALLOW_PARALLEL === "1" ||
   process.env.MANUAL_CAPTURE_ALLOW_PARALLEL === "true";
+const manualGeneratePageFilter = new Set(
+  String(process.env.MANUAL_GENERATE_PAGE_FILTER ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
 
 const loadFixtureSummary = () => {
   for (const summaryPath of [trackedFixtureSummaryPath, fixtureSummaryPath]) {
@@ -168,6 +174,9 @@ const writeLastRunReport = async (report) => {
     "utf8",
   );
 };
+
+const shouldCapturePage = (slug) =>
+  manualGeneratePageFilter.size === 0 || manualGeneratePageFilter.has(slug);
 
 const buildFixtureSessionPayload = (lessonId) => {
   if (typeof lessonId !== "string") {
@@ -1961,6 +1970,12 @@ const waitForCaptureReady = async (page, slug) => {
 };
 
 const capturePage = async ({ page, pageSpec, report }) => {
+  if (!shouldCapturePage(pageSpec.slug)) {
+    report.skippedPages ??= [];
+    report.skippedPages.push(pageSpec.slug);
+    return;
+  }
+
   await waitForCaptureReady(page, pageSpec.slug);
   await page.screenshot({
     path: path.join(imagesRoot, pageSpec.imageName),
@@ -2779,6 +2794,7 @@ const generateDocs = async () => {
       fixtureOnly,
       markdownOnly,
       allowParallelManualCapture,
+      pageFilter: [...manualGeneratePageFilter],
     },
   };
   if (fixtureOnly && markdownOnly) {
