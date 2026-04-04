@@ -69,6 +69,7 @@ const usage = `Usage:
 
 Commands:
   init                 Create or reuse fixture students/classes and set initial state
+  prepare-manual       Prepare stable manual-capture fixtures for today's lesson
   teacher-mode <mode>  Switch teacher class assignment: none | single | multi
   student-mode <mode>  Switch student class assignment: none | single | multi
   status               Print managed fixture state
@@ -550,6 +551,29 @@ const runAws = async (args, awsRegion = defaultAwsRegion) => {
     const detail =
       error instanceof Error ? error.message : "AWS CLI execution failed";
     throw new Error(`AWS CLI failed: ${detail}`);
+  }
+};
+
+const assertAwsSsoAuthenticated = async (awsRegion = defaultAwsRegion) => {
+  const awsProfile = process.env.AWS_PROFILE?.trim();
+  if (!awsProfile) {
+    throw new Error(
+      "AWS_PROFILE is required for fixture preparation. Set it to your SSO profile, then run `aws sso login --profile <profile>` before retrying.",
+    );
+  }
+
+  try {
+    const stdout = await runAws(["sts", "get-caller-identity"], awsRegion);
+    const identity = JSON.parse(stdout || "{}");
+    if (!identity?.Account || !identity?.Arn) {
+      throw new Error("STS identity payload was incomplete.");
+    }
+    return identity;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `AWS SSO authentication for profile "${awsProfile}" is not ready. Run \`aws sso login --profile ${awsProfile}\` and retry. Details: ${detail}`,
+    );
   }
 };
 
@@ -1051,13 +1075,24 @@ const ensureManagedClass = async ({
 };
 
 const updateTeacherAvatar = async ({ api, teacherAccountId, teacherName }) => {
-  await api.put(`/users/${encodeURIComponent(teacherAccountId)}`, {
-    name: teacherName,
-    logo: createSvgDataUrl({
-      label: "T",
-      background: "#E74C3C",
-    }),
-  });
+  try {
+    await api.put(`/users/${encodeURIComponent(teacherAccountId)}`, {
+      name: teacherName,
+      logo: createSvgDataUrl({
+        label: "T",
+        background: "#E74C3C",
+      }),
+    });
+  } catch (error) {
+    const detail = String(error);
+    if (detail.includes("AdminUpdateUserAttributes") || detail.includes("AccessDeniedException")) {
+      console.warn(
+        `[manual-capture] teacher avatar update skipped due to permissions: ${detail}`,
+      );
+      return;
+    }
+    throw error;
+  }
 };
 
 const updateStudentProfile = async ({ api, studentId, studentSpec, logo }) => {
@@ -1068,16 +1103,29 @@ const updateStudentProfile = async ({ api, studentId, studentSpec, logo }) => {
   });
 };
 
-const buildStudentAvatarLogo = async (avatar) => {
+const buildStudentAvatarLogo = async (avatar, fallbackLabel = "S") => {
   const badgeSource = avatar?.badgeUrl || avatar?.avatarUrl || "";
   if (!badgeSource) {
-    return "";
+    return createSvgDataUrl({
+      label: fallbackLabel,
+      background: pickRandomAvatarBackground().hex,
+    });
   }
 
-  return createBadgeCompositeDataUrl({
-    badgeDataUrl: await fetchAssetAsDataUrl(badgeSource),
-    backgroundHex: pickRandomAvatarBackground().hex,
-  });
+  try {
+    return createBadgeCompositeDataUrl({
+      badgeDataUrl: await fetchAssetAsDataUrl(badgeSource),
+      backgroundHex: pickRandomAvatarBackground().hex,
+    });
+  } catch (error) {
+    console.warn(
+      `[manual-capture] avatar badge asset unavailable, using SVG fallback: ${String(error)}`,
+    );
+    return createSvgDataUrl({
+      label: fallbackLabel,
+      background: pickRandomAvatarBackground().hex,
+    });
+  }
 };
 
 const buildProgressMap = (studentIndex) => ({
@@ -1291,6 +1339,70 @@ const loadAvatarCatalog = async ({ baseUrl, manifestPath }) => {
   };
 };
 
+const loadTrackedFixtureSummary = async () => {
+  for (const candidatePath of [trackedSummaryOutputPath, summaryOutputPath]) {
+    try {
+      return await readJsonFile(candidatePath);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+};
+
+const resolveAvatarAssignmentsFromSummary = ({ summary, managedStudents }) => {
+  const studentsByKey = new Map(
+    (summary?.students ?? [])
+      .filter((student) => typeof student?.key === "string")
+      .map((student) => [student.key, student]),
+  );
+
+  return managedStudents.reduce((map, studentSpec) => {
+    const avatar = studentsByKey.get(studentSpec.key)?.avatar;
+    if (!avatar?.key) {
+      return map;
+    }
+
+    map[studentSpec.key] = {
+      key: avatar.key,
+      name: avatar.name ?? avatar.key,
+      coinCost: 0,
+      badgeUrl: avatar.badgeUrl ?? "",
+      avatarUrl: avatar.avatarUrl ?? "",
+      group: avatar.group ?? "",
+      type: avatar.type ?? "",
+    };
+    return map;
+  }, {});
+};
+
+const resolveAvatarAssignmentsWithFallback = async ({ config, managedStudents }) => {
+  try {
+    const avatarCatalog = await loadAvatarCatalog({
+      baseUrl: config.avatarCatalogBaseUrl,
+      manifestPath: config.avatarManifestPath,
+    });
+    return resolveAvatarAssignments({
+      manifestUrl: avatarCatalog.manifestUrl,
+      items: avatarCatalog.items,
+      managedStudents,
+    });
+  } catch (error) {
+    const summary = await loadTrackedFixtureSummary();
+    const fallbackAssignments = resolveAvatarAssignmentsFromSummary({
+      summary,
+      managedStudents,
+    });
+    if (Object.keys(fallbackAssignments).length > 0) {
+      console.warn(
+        `[manual-capture] avatar catalog unavailable, reusing tracked avatar assignments: ${String(error)}`,
+      );
+      return fallbackAssignments;
+    }
+    throw error;
+  }
+};
+
 const resolveCatalogImageUrl = (manifestUrl, imagePath) => {
   if (!imagePath) {
     return "";
@@ -1360,13 +1472,24 @@ const syncStudentRankPoints = async ({
     return targetPoints;
   }
 
-  await api.post(`/students/${encodeURIComponent(studentId)}/rank-points`, {
-    unit: 1,
-    amount: delta,
-    reason: "MANUAL",
-    note: "Reset image fixture rank points",
-    grantedBy,
-  });
+  try {
+    await api.post(`/students/${encodeURIComponent(studentId)}/rank-points`, {
+      unit: 1,
+      amount: delta,
+      reason: "MANUAL",
+      note: "Reset image fixture rank points",
+      grantedBy,
+    });
+  } catch (error) {
+    const detail = String(error);
+    if (detail.includes("rank-points") && detail.includes(" 400 ")) {
+      console.warn(
+        `[manual-capture] rank-points sync skipped for ${studentId}: ${detail}`,
+      );
+      return currentPoints;
+    }
+    throw error;
+  }
   return targetPoints;
 };
 
@@ -1396,7 +1519,10 @@ const ensureAvatarSelection = async ({
       api,
       studentId,
       studentSpec,
-      logo: await buildStudentAvatarLogo(preferredAvatar),
+      logo: await buildStudentAvatarLogo(
+        preferredAvatar,
+        studentSpec.name.charAt(0).toUpperCase() || "S",
+      ),
     });
     return preferredAvatar;
   }
@@ -1406,7 +1532,10 @@ const ensureAvatarSelection = async ({
       api,
       studentId,
       studentSpec,
-      logo: await buildStudentAvatarLogo(currentCatalogAvatar),
+      logo: await buildStudentAvatarLogo(
+        currentCatalogAvatar,
+        studentSpec.name.charAt(0).toUpperCase() || "S",
+      ),
     });
     return currentCatalogAvatar;
   }
@@ -1450,7 +1579,10 @@ const ensureAvatarSelection = async ({
     api,
     studentId,
     studentSpec,
-    logo: await buildStudentAvatarLogo(selectedAvatar),
+    logo: await buildStudentAvatarLogo(
+      selectedAvatar,
+      studentSpec.name.charAt(0).toUpperCase() || "S",
+    ),
   });
 
   return selectedAvatar;
@@ -1662,13 +1794,8 @@ const ensureInitialFixtures = async ({ api, config, state }) => {
 
   const managedStudents = resolveManagedStudents(config.prefix);
   const managedClasses = resolveManagedClasses(config.prefix);
-  const avatarCatalog = await loadAvatarCatalog({
-    baseUrl: config.avatarCatalogBaseUrl,
-    manifestPath: config.avatarManifestPath,
-  });
-  const avatarAssignments = resolveAvatarAssignments({
-    manifestUrl: avatarCatalog.manifestUrl,
-    items: avatarCatalog.items,
+  const avatarAssignments = await resolveAvatarAssignmentsWithFallback({
+    config,
     managedStudents,
   });
 
@@ -1693,13 +1820,16 @@ const ensureInitialFixtures = async ({ api, config, state }) => {
       grantedBy: "codex-image-fixtures",
     });
 
-    await ensureAvatarSelection({
-      api,
-      studentId,
-      studentSpec,
-      preferredAvatar: avatarAssignments[studentSpec.key],
-      fallbackAvatars: Object.values(avatarAssignments),
-    });
+    const preferredAvatar = avatarAssignments[studentSpec.key];
+    if (preferredAvatar?.key) {
+      await ensureAvatarSelection({
+        api,
+        studentId,
+        studentSpec,
+        preferredAvatar,
+        fallbackAvatars: Object.values(avatarAssignments),
+      });
+    }
   }
 
   for (const classSpec of managedClasses) {
@@ -1786,6 +1916,13 @@ const ensureInitialFixtures = async ({ api, config, state }) => {
     avatarAssignments,
   });
   await writeFixtureOutputs({ config, state, summary });
+};
+
+const prepareManualFixtures = async ({ api, config, state }) => {
+  await ensureInitialFixtures({ api, config, state });
+  await setTeacherMode({ api, config, state, mode: "single" });
+  await setStudentMode({ api, config, state, mode: "single" });
+  await refreshOutputs({ api, config, state });
 };
 
 const setTeacherMode = async ({ api, config, state, mode }) => {
@@ -1883,13 +2020,8 @@ const setStudentMode = async ({ api, config, state, mode }) => {
 const refreshOutputs = async ({ api, config, state }) => {
   const managedStudents = resolveManagedStudents(config.prefix);
   const managedClasses = resolveManagedClasses(config.prefix);
-  const avatarCatalog = await loadAvatarCatalog({
-    baseUrl: config.avatarCatalogBaseUrl,
-    manifestPath: config.avatarManifestPath,
-  });
-  const avatarAssignments = resolveAvatarAssignments({
-    manifestUrl: avatarCatalog.manifestUrl,
-    items: avatarCatalog.items,
+  const avatarAssignments = await resolveAvatarAssignmentsWithFallback({
+    config,
     managedStudents,
   });
   const summary = await buildFixtureSummary({
@@ -1958,6 +2090,13 @@ const main = async () => {
 
   const releaseLock = await acquireManualCaptureLock("setup-dev-image-fixtures");
   try {
+    const awsIdentity = await assertAwsSsoAuthenticated(config.value.awsRegion);
+    run.awsIdentity = {
+      account: awsIdentity.Account ?? null,
+      arn: awsIdentity.Arn ?? null,
+      userId: awsIdentity.UserId ?? null,
+    };
+
     const bearerToken = await resolveBearerToken(config.value.baseUrl);
     const api = createApiClient({
       apiBaseUrl: config.value.apiBaseUrl,
@@ -1966,6 +2105,20 @@ const main = async () => {
 
     if (command === "init") {
       await ensureInitialFixtures({
+        api,
+        config: config.value,
+        state,
+      });
+      await saveState(statePath, state);
+      run.result = "success";
+      run.completedAt = new Date().toISOString();
+      await writeSetupLastRun(run);
+      printStatus({ config, state });
+      return;
+    }
+
+    if (command === "prepare-manual") {
+      await prepareManualFixtures({
         api,
         config: config.value,
         state,

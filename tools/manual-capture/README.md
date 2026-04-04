@@ -38,5 +38,8 @@ npm run setup:image-fixtures -- student-mode none
 - 並列実行をどうしても許可したい場合だけ `MANUAL_CAPTURE_ALLOW_PARALLEL=true` を使います
 - fixture setup の最新実行内容は `.artifacts/setup-dev-image-fixtures.last-run.json` に残ります
 - manual capture の最新実行内容は `.artifacts/last-run.json` に残ります
+- `last-run.json` には page ごとの `captureDiagnostics` が入り、可視画像の pending / broken の有無を追えます
 - 実行中に API 応答が不安定でも、URL だけで失敗判定せず主要 UI の安定を優先します
+- `Enter Lesson` の Join は即時有効化を前提にせず、ダイアログ再オープンと再試行で待つようにしています
 - 画面は出るのに画像やアバターだけ欠けるときは、API ではなく asset 配信 URL を先に疑います
+- 画像の読み込み待ちは `MANUAL_CAPTURE_ASSET_TIMEOUT_MS` と `MANUAL_CAPTURE_SETTLE_TIMEOUT_MS` で調整できます

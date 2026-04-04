@@ -65,6 +65,9 @@ const manualGeneratePageFilter = new Set(
     .filter(Boolean),
 );
 
+const escapeRegExp = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const loadFixtureSummary = () => {
   for (const summaryPath of [trackedFixtureSummaryPath, fixtureSummaryPath]) {
     try {
@@ -109,10 +112,28 @@ const fixtureLessonId = fixturePrimaryClassId
   : null;
 const baseUrl = process.env.ECO_BASE_URL;
 const flowStepTimeoutMs = Number(process.env.MANUAL_FLOW_STEP_TIMEOUT_MS ?? "45000");
+const captureAssetTimeoutMs = Number(
+  process.env.MANUAL_CAPTURE_ASSET_TIMEOUT_MS ?? "30000",
+);
+const captureSettleTimeoutMs = Number(
+  process.env.MANUAL_CAPTURE_SETTLE_TIMEOUT_MS ?? "5000",
+);
+const joinReadyAttempts = Number(
+  process.env.MANUAL_JOIN_READY_ATTEMPTS ?? "45",
+);
+const joinReadyRetryDelayMs = Number(
+  process.env.MANUAL_JOIN_READY_RETRY_DELAY_MS ?? "1000",
+);
+const joinDialogReopenInterval = Number(
+  process.env.MANUAL_JOIN_DIALOG_REOPEN_INTERVAL ?? "5",
+);
 const teacherEmail =
   fixtureTeacherEmail ?? process.env.E2E_TEACHER_EMAIL;
 const parentEmail = fallbackParentEmail ?? process.env.E2E_PARENT_EMAIL;
 const password = process.env.E2E_LOGIN_PASSWORD;
+const fixtureTeacherNamePattern = fixtureSummary?.teacher?.name
+  ? new RegExp(escapeRegExp(fixtureSummary.teacher.name), "i")
+  : /Teacher|先生/i;
 
 if (!baseUrl || !teacherEmail || !parentEmail || !password) {
   throw new Error(
@@ -334,6 +355,107 @@ const createManualCaptureContext = async (browser, options) => {
 
   return context;
 };
+
+const lessonGameTargets = [
+  {
+    gameId: "word-challenge",
+    slug: "teacher-game-word-challenge",
+    title: "Word Challenge Game",
+    gameCenterTitle: "WORD CHALLENGE",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "speed-challenge",
+    slug: "teacher-game-speed-challenge",
+    title: "Speed Challenge Game",
+    gameCenterTitle: "SPEED CHALLENGE",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "memory-match",
+    slug: "teacher-game-memory-match",
+    title: "Memory Match Game",
+    gameCenterTitle: "MEMORY MATCH",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "word-twist",
+    slug: "teacher-game-word-twist",
+    title: "Word Twist Game",
+    gameCenterTitle: "WORD TWIST",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "word-search",
+    slug: "teacher-game-word-search",
+    title: "Word Search Game",
+    gameCenterTitle: "WORD SEARCH",
+    previewColor: "green",
+    previewUnit: 1,
+  },
+  {
+    gameId: "sentence-scramble",
+    slug: "teacher-game-sentence-scramble",
+    title: "Sentence Scramble Game",
+    gameCenterTitle: "SENTENCE SCRAMBLE",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "hangman",
+    slug: "teacher-game-hangman",
+    title: "Hangman Game",
+    gameCenterTitle: "HANGMAN",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "image-count",
+    slug: "teacher-game-image-count",
+    title: "Image Count Game",
+    gameCenterTitle: "IMAGE COUNT",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "letter-shoot",
+    slug: "teacher-game-letter-shoot",
+    title: "Letter Shoot Game",
+    gameCenterTitle: "LETTER SHOOT",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "letter-drop",
+    slug: "teacher-game-letter-drop",
+    title: "Letter Drop Game",
+    gameCenterTitle: "LETTER DROP",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+  {
+    gameId: "snake",
+    slug: "teacher-game-snake",
+    title: "Snake Game",
+    gameCenterTitle: "SNAKE",
+    previewColor: "blue",
+    previewUnit: 1,
+  },
+];
+
+const teacherGamePageSpecs = lessonGameTargets.map((target) => ({
+  slug: target.slug,
+  title: target.title,
+  tag: "lesson",
+  imageName: `screen-lesson-${target.slug}.png`,
+  description: `Lesson content を ${target.title} に切り替えた状態です。`,
+  imageDescription: `${target.title} のプレイ画面が表示されます。`,
+  items: [],
+}));
 
 const pageSpecs = [
   {
@@ -893,6 +1015,79 @@ const pageSpecs = [
       { id: "detail-root", label: "単体表示コンテンツ", purpose: "選択した Student Card 詳細を拡大表示した状態です。" },
     ],
   },
+  {
+    slug: "restricted",
+    title: "Restricted",
+    tag: "common",
+    imageName: "screen-common-restricted.png",
+    description: "権限不一致または利用不可の device mode に入った場合の制限画面です。",
+    imageDescription: "利用できない旨のメッセージと Login Page への戻り導線が表示されます。",
+    items: [],
+  },
+  {
+    slug: "shared-mypage",
+    title: "Shared My Page",
+    tag: "shared",
+    imageName: "screen-shared-mypage.png",
+    description: "Shared 端末で選択した生徒の進捗やポイントを確認するページです。",
+    imageDescription: "生徒情報、ポイント、授業予定、進捗確認 UI が表示されます。",
+    items: [],
+  },
+  {
+    slug: "shared-lesson",
+    title: "Shared Lesson Page",
+    tag: "lesson",
+    imageName: "screen-lesson-shared-session.png",
+    description: "Shared 端末で Lesson session に参加した Study / Viewer 状態です。",
+    imageDescription: "Lesson ヘッダー、生徒向け同期表示、Student Card コンテンツが表示されます。",
+    items: [],
+  },
+  {
+    slug: "home-lesson-study-player",
+    title: "Home Lesson Study Player",
+    tag: "lesson",
+    imageName: "screen-lesson-home-session-study-player.png",
+    description: "Home 端末で Study モード中に生徒が Operator として参加している状態です。",
+    imageDescription: "Lesson ヘッダーに Player 表示が出て、Student Card コンテンツが表示されます。",
+    items: [],
+  },
+  {
+    slug: "shared-lesson-study-player",
+    title: "Shared Lesson Study Player",
+    tag: "lesson",
+    imageName: "screen-lesson-shared-session-study-player.png",
+    description: "Shared 端末で Study モード中に生徒が Operator として参加している状態です。",
+    imageDescription: "Lesson ヘッダーに Player 表示が出て、Student Card コンテンツが表示されます。",
+    items: [],
+  },
+  {
+    slug: "teacher-lesson-play",
+    title: "Teacher Lesson Play",
+    tag: "lesson",
+    imageName: "screen-lesson-teacher-session-play.png",
+    description: "Teacher が Lesson session を Play モードに切り替えた状態です。",
+    imageDescription: "Lesson ヘッダーの同期表示が Play になった Teacher Lesson 画面です。",
+    items: [],
+  },
+  {
+    slug: "home-lesson-play",
+    title: "Home Lesson Play",
+    tag: "lesson",
+    imageName: "screen-lesson-home-session-play.png",
+    description: "Home 端末で Lesson session を Play モードで表示している状態です。",
+    imageDescription: "Lesson ヘッダーに OPEN MY PAGE が表示される生徒側 Lesson 画面です。",
+    items: [],
+  },
+  {
+    slug: "shared-lesson-play",
+    title: "Shared Lesson Play",
+    tag: "lesson",
+    imageName: "screen-lesson-shared-session-play.png",
+    description: "Shared 端末で Lesson session を Play モードで表示している状態です。",
+    imageDescription: "Lesson ヘッダーに OPEN MY PAGE が表示される Shared 側 Lesson 画面です。",
+    items: [],
+  },
+  ...teacherGamePageSpecs,
 ];
 
 const toKebabCase = (value) =>
@@ -1784,6 +1979,11 @@ const validateGeneratedDocs = async ({
 const waitForPageReady = async (page) => {
   await page.waitForLoadState("domcontentloaded");
   await page.waitForLoadState("networkidle", { timeout: 60000 }).catch(() => {});
+  await page.evaluate(async () => {
+    if (document.fonts?.ready) {
+      await document.fonts.ready.catch(() => {});
+    }
+  }).catch(() => {});
   await page.waitForTimeout(1500);
 };
 
@@ -1807,6 +2007,190 @@ const waitForStudentCardRendered = async (page) => {
   });
 };
 
+const getStudentBadgeAvatarButton = (page) =>
+  page.locator('[data-testid^="student-badge-"][data-testid$="-avatar-button"]').first();
+
+const getStudentBadgeAddButton = (page) =>
+  page.locator('[data-testid^="student-badge-"][data-testid$="-add-button"]').first();
+
+const getStudentBadgeRemoveButton = (page) =>
+  page.locator('[data-testid^="student-badge-"][data-testid$="-remove-button"]').first();
+
+const getTeacherStudentsPanelCard = (page) =>
+  page.locator('[data-testid^="student-"][data-testid$="-card"]').first();
+
+const getTeacherStudentsPanelTodayScoreInput = (page) =>
+  page.locator('[data-testid^="student-"][data-testid$="-today-score-input"]').first();
+
+const getTeacherStudentsPanelTotalScoreInput = (page) =>
+  page.locator('[data-testid^="student-"][data-testid$="-total-score-input"]').first();
+
+const waitForAnimationFrames = async (page, count = 2) => {
+  await page.evaluate(async (frameCount) => {
+    for (let index = 0; index < frameCount; index += 1) {
+      await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+    }
+  }, count);
+};
+
+const readVisualAssetDiagnostics = async (page) =>
+  page.evaluate(() => {
+    const isVisible = (node) => {
+      const style = window.getComputedStyle(node);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        Number(style.opacity) === 0
+      ) {
+        return false;
+      }
+
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+
+    const images = Array.from(document.images)
+      .filter((image) => isVisible(image))
+      .map((image) => ({
+        src: image.currentSrc || image.src || "",
+        alt: image.getAttribute("alt") ?? "",
+        complete: image.complete,
+        naturalWidth: image.naturalWidth,
+      }));
+
+    const broken = images
+      .filter((image) => image.complete && image.naturalWidth === 0)
+      .map((image) => ({
+        src: image.src,
+        alt: image.alt,
+      }));
+    const pending = images
+      .filter((image) => !image.complete)
+      .map((image) => ({
+        src: image.src,
+        alt: image.alt,
+      }));
+
+    return {
+      visibleImageCount: images.length,
+      broken,
+      pending,
+      fontStatus: document.fonts?.status ?? "unsupported",
+    };
+  });
+
+const waitForVisibleImagesReady = async (page) => {
+  await page.waitForFunction(
+    () => {
+      const isVisible = (node) => {
+        const style = window.getComputedStyle(node);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          Number(style.opacity) === 0
+        ) {
+          return false;
+        }
+
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const visibleImages = Array.from(document.images).filter((image) =>
+        isVisible(image)
+      );
+      return visibleImages.every((image) => image.complete && image.naturalWidth > 0);
+    },
+    undefined,
+    { timeout: captureAssetTimeoutMs },
+  ).catch(() => {});
+};
+
+const stabilizePageForCapture = async (page, slug, report) => {
+  await waitForNoLoadingText(page).catch(() => {});
+  await page.evaluate(async () => {
+    if (document.fonts?.ready) {
+      await document.fonts.ready.catch(() => {});
+    }
+  }).catch(() => {});
+  await waitForVisibleImagesReady(page);
+  await waitForAnimationFrames(page, 2).catch(() => {});
+  await page.waitForTimeout(300);
+
+  const diagnostics = await readVisualAssetDiagnostics(page).catch(() => null);
+  if (!diagnostics) {
+    return;
+  }
+
+  report.captureDiagnostics ??= [];
+  report.captureDiagnostics.push({
+    slug,
+    ...diagnostics,
+    recordedAt: new Date().toISOString(),
+  });
+
+  if (diagnostics.pending.length > 0 || diagnostics.broken.length > 0) {
+    await page.waitForTimeout(Math.min(captureSettleTimeoutMs, 2_000));
+    await waitForVisibleImagesReady(page);
+    await waitForAnimationFrames(page, 2).catch(() => {});
+
+    const retriedDiagnostics = await readVisualAssetDiagnostics(page).catch(
+      () => diagnostics,
+    );
+    report.captureDiagnostics.push({
+      slug,
+      ...retriedDiagnostics,
+      recordedAt: new Date().toISOString(),
+      retry: true,
+    });
+  }
+};
+
+const waitForTeacherStartupReady = async (page) => {
+  const reachedExpectedUrl = await page
+    .waitForURL(/\/teacher\/lesson$/, {
+      timeout: 20_000,
+    })
+    .then(() => true)
+    .catch(() => false);
+
+  if (reachedExpectedUrl) {
+    return;
+  }
+
+  await page.getByTestId("lesson-header-menu-button").waitFor({
+    timeout: 20_000,
+  });
+};
+
+const waitForHomeStartupReady = async (page) => {
+  const reachedExpectedUrl = await page
+    .waitForURL(/\/switch-student$|\/home\/lesson$/, {
+      timeout: 20_000,
+    })
+    .then(() => true)
+    .catch(() => false);
+
+  if (reachedExpectedUrl) {
+    return /\/switch-student$/.test(page.url()) ? "switch-student" : "homework";
+  }
+
+  await page.getByTestId("lesson-header-class-name").waitFor({ timeout: 20_000 });
+  await page.getByTestId("lesson-header-school-name").waitFor({ timeout: 20_000 });
+  await page.getByTestId("lesson-header-menu-button").waitFor({ timeout: 20_000 });
+  return "homework";
+};
+
+const waitForSharedStudentSelectionReady = async (page) => {
+  await page.waitForFunction(
+    () =>
+      window.location.pathname === "/select-student" ||
+      document.body.innerText.includes("ACE STUDENT"),
+    undefined,
+    { timeout: 20_000 },
+  );
+};
+
 const waitForCaptureReady = async (page, slug) => {
   const body = page.locator("body");
 
@@ -1818,6 +2202,11 @@ const waitForCaptureReady = async (page, slug) => {
     login: async () => {
       await page.waitForURL(/\/login$/);
       await page.getByRole("button", { name: /^Login$/i }).waitFor();
+    },
+    restricted: async () => {
+      await page.waitForURL(/\/restricted$/);
+      await page.getByRole("button", { name: /Login Page/i }).waitFor();
+      await waitForNoLoadingText(page);
     },
     "home-switch-student": async () => {
       await page.waitForURL(/\/switch-student$/);
@@ -1858,7 +2247,6 @@ const waitForCaptureReady = async (page, slug) => {
     "teacher-startup": async () => {
       await page.waitForURL(/\/teacher\/lesson$/);
       await page.getByTestId("lesson-header-menu-button").waitFor();
-      await waitForStudentCardRendered(page);
       await waitForNoLoadingText(page);
     },
     "shared-select-class": async () => {
@@ -1877,17 +2265,23 @@ const waitForCaptureReady = async (page, slug) => {
       });
     },
     "shared-select-student": async () => {
-      await page.waitForURL(/\/select-student$/);
-      await page.waitForFunction(() => {
-        const text = document.body.innerText.replace(/\s+/g, " ").trim();
-        return /Select Student/i.test(text) && /ACE STUDENT/i.test(text) && !/Loading/i.test(text);
-      });
+      await waitForSharedStudentSelectionReady(page);
+      await page.getByRole("combobox").waitFor();
       await page.getByRole("button", { name: /^Select$/i }).waitFor();
+      await waitForNoLoadingText(page);
     },
     "shared-startup": async () => {
       await page.waitForURL(/\/shared\/lesson$/);
       await page.getByTestId("lesson-header-menu-button").waitFor();
       await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "shared-mypage": async () => {
+      await page.waitForURL(/\/mypage$/);
+      await page.waitForFunction(() => {
+        const text = document.body.innerText.replace(/\s+/g, " ").trim();
+        return /Coins|Points|Progress|Next Class/i.test(text);
+      });
       await waitForNoLoadingText(page);
     },
     "teacher-lesson": async () => {
@@ -1910,26 +2304,86 @@ const waitForCaptureReady = async (page, slug) => {
       await waitForStudentCardRendered(page);
       await waitForNoLoadingText(page);
     },
+    "shared-lesson": async () => {
+      await page.waitForFunction(() =>
+        /\/shared\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "home-lesson-study-player": async () => {
+      await page.waitForFunction(() =>
+        /\/home\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "shared-lesson-study-player": async () => {
+      await page.waitForFunction(() =>
+        /\/shared\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "teacher-lesson-play": async () => {
+      await page.waitForFunction(() =>
+        /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "home-lesson-play": async () => {
+      await page.waitForFunction(() =>
+        /\/home\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
+    "shared-lesson-play": async () => {
+      await page.waitForFunction(() =>
+        /\/shared\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?/.test(
+          window.location.pathname,
+        ),
+      );
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForStudentCardRendered(page);
+      await waitForNoLoadingText(page);
+    },
     "teacher-panel-none-md": async () => {
       await page.getByTestId("lesson-header").waitFor();
       await page.getByTestId("student-card-content-root").waitFor();
     },
     "teacher-panel-icon-md": async () => {
       await page.getByTestId("lesson-shell-students").waitFor();
-      await page.getByTestId("student-badge-student-ace-001-avatar-button").waitFor();
+      await getStudentBadgeAvatarButton(page).waitFor();
     },
     "teacher-panel-icon-xs": async () => {
       await page.getByTestId("lesson-shell-students").waitFor();
-      await page.getByTestId("student-badge-student-ace-001-avatar-button").waitFor();
+      await getStudentBadgeAvatarButton(page).waitFor();
     },
     "teacher-panel-simple-md": async () => {
-      await page.getByTestId("student-student-ace-001-card").waitFor();
+      await getTeacherStudentsPanelCard(page).waitFor();
     },
     "teacher-panel-full-md": async () => {
-      await page.getByTestId("student-student-ace-001-total-score-input").waitFor();
+      await getTeacherStudentsPanelTotalScoreInput(page).waitFor();
     },
     "teacher-panel-progress-md": async () => {
-      await page.getByTestId("student-student-ace-001-card").waitFor();
+      await getTeacherStudentsPanelCard(page).waitFor();
       await page.waitForFunction(() => /Progress|Homework/i.test(document.body.innerText));
     },
     "teacher-content-vocabulary-particle": async () => {
@@ -1938,10 +2392,8 @@ const waitForCaptureReady = async (page, slug) => {
           window.location.pathname + window.location.search,
         ),
       );
-      await page.waitForFunction(() => {
-        const text = document.body.innerText.replace(/\s+/g, " ").trim();
-        return /Vocabulary Particle/i.test(text) && /Slide/i.test(text) && /Match/i.test(text);
-      });
+      await page.getByTestId("lesson-header").waitFor();
+      await waitForNoLoadingText(page);
     },
     "teacher-content-games": async () => {
       await page.waitForFunction(() =>
@@ -1960,6 +2412,14 @@ const waitForCaptureReady = async (page, slug) => {
     },
   };
 
+  const gameTarget = lessonGameTargets.find((target) => target.slug === slug);
+  if (gameTarget) {
+    await page.getByTestId("lesson-header").waitFor();
+    await waitForGameContentReady(page, gameTarget.gameId);
+    await waitForNoLoadingText(page);
+    return;
+  }
+
   if (readyMap[slug]) {
     await readyMap[slug]();
     return;
@@ -1977,6 +2437,7 @@ const capturePage = async ({ page, pageSpec, report }) => {
   }
 
   await waitForCaptureReady(page, pageSpec.slug);
+  await stabilizePageForCapture(page, pageSpec.slug, report);
   await page.screenshot({
     path: path.join(imagesRoot, pageSpec.imageName),
     fullPage: true,
@@ -2004,17 +2465,22 @@ const capturePage = async ({ page, pageSpec, report }) => {
   }
 };
 
-const runStep = async (report, stepName, action) => {
+const runStep = async (report, stepName, action, options = {}) => {
+  const timeoutMs = options.timeoutMs ?? flowStepTimeoutMs;
+  console.log(`[manual-capture] step:start ${stepName}`);
   try {
     await Promise.race([
       action(),
       new Promise((_, reject) => {
         setTimeout(() => {
-          reject(new Error(`Step timed out after ${flowStepTimeoutMs}ms: ${stepName}`));
-        }, flowStepTimeoutMs);
+          reject(new Error(`Step timed out after ${timeoutMs}ms: ${stepName}`));
+        }, timeoutMs);
       }),
     ]);
+    console.log(`[manual-capture] step:done ${stepName}`);
   } catch (error) {
+    console.error(`[manual-capture] step:fail ${stepName}`);
+    console.error(String(error));
     report.flowFailures ??= [];
     report.flowFailures.push({
       step: stepName,
@@ -2064,7 +2530,7 @@ const getItemLocator = async (page, slug, itemId) => {
       "filter-panel": byTextBlock(/Ownership/i),
     },
     "teacher-select-class": {
-      "teacher-name": byTextBlock(/先生/i),
+      "teacher-name": byTextBlock(fixtureTeacherNamePattern),
       "class-card": byTextBlock(/ACE DEMO SCHOOL/i),
       "select-button": byRole("button", /^Select$/i),
     },
@@ -2079,7 +2545,7 @@ const getItemLocator = async (page, slug, itemId) => {
       "student-card": page.getByTestId("student-card-content-root").first(),
     },
     "shared-select-class": {
-      "teacher-name": byTextBlock(/先生/i),
+      "teacher-name": byTextBlock(fixtureTeacherNamePattern),
       "class-card": byTextBlock(/ACE DEMO SCHOOL/i),
       "select-button": byRole("button", /^Select$/i),
     },
@@ -2118,7 +2584,7 @@ const getItemLocator = async (page, slug, itemId) => {
       "menu-button": page.getByTestId("lesson-header-menu-button").first(),
       "students-toggle": page.getByTestId("lesson-header-students-toggle").first(),
       "students-level": page.getByLabel("CHANGE STUDENTS LEVEL").first(),
-      "viewer-status": page.getByTestId("lesson-header").getByRole("button", { name: /Viewer|OPEN MY PAGE/i }).first(),
+      "viewer-status": page.getByTestId("lesson-header").getByRole("button", { name: /Viewer|Player|OPEN MY PAGE/i }).first(),
       datetime: page.getByTestId("lesson-header-datetime").first(),
       "student-card": page.getByTestId("student-card-content-root").first(),
     },
@@ -2126,24 +2592,24 @@ const getItemLocator = async (page, slug, itemId) => {
       "student-card": page.getByTestId("student-card-content-root").first(),
     },
     "teacher-panel-icon-md": {
-      "avatar-button": page.getByTestId("student-badge-student-ace-001-avatar-button").first(),
-      "score-add": page.getByTestId("student-badge-student-ace-001-add-button").first(),
-      "score-remove": page.getByTestId("student-badge-student-ace-001-remove-button").first(),
+      "avatar-button": getStudentBadgeAvatarButton(page),
+      "score-add": getStudentBadgeAddButton(page),
+      "score-remove": getStudentBadgeRemoveButton(page),
     },
     "teacher-panel-icon-xs": {
-      "avatar-button": page.getByTestId("student-badge-student-ace-001-avatar-button").first(),
+      "avatar-button": getStudentBadgeAvatarButton(page),
     },
     "teacher-panel-simple-md": {
-      "student-card": page.getByTestId("student-student-ace-001-card").first(),
-      "today-score": page.getByTestId("student-student-ace-001-today-score-input").first(),
+      "student-card": getTeacherStudentsPanelCard(page),
+      "today-score": getTeacherStudentsPanelTodayScoreInput(page),
     },
     "teacher-panel-full-md": {
-      "student-card": page.getByTestId("student-student-ace-001-card").first(),
-      "today-score": page.getByTestId("student-student-ace-001-today-score-input").first(),
-      "unit-total-score": page.getByTestId("student-student-ace-001-total-score-input").first(),
+      "student-card": getTeacherStudentsPanelCard(page),
+      "today-score": getTeacherStudentsPanelTodayScoreInput(page),
+      "unit-total-score": getTeacherStudentsPanelTotalScoreInput(page),
     },
     "teacher-panel-progress-md": {
-      "student-card": page.getByTestId("student-student-ace-001-card").first(),
+      "student-card": getTeacherStudentsPanelCard(page),
     },
     "teacher-content-vocabulary-particle": {
       "slide-mode": byTextBlock(/^Slide$/i),
@@ -2162,6 +2628,195 @@ const getItemLocator = async (page, slug, itemId) => {
 };
 
 const extractLessonId = (url) => url.match(/lesson\/([^/]+)\/session/)?.[1] ?? null;
+
+const waitForGameContentReady = async (page, gameId) => {
+  const waiters = {
+    "word-challenge": () => page.getByTestId("word-challenge-start-panel").waitFor(),
+    "speed-challenge": () => page.getByTestId("speed-challenge-stage").waitFor(),
+    "memory-match": () => page.getByTestId("memory-match-stage").waitFor(),
+    "word-twist": () => page.getByTestId("word-twist-stage").waitFor(),
+    "word-search": () => page.getByTestId("word-search-grid").waitFor(),
+    "sentence-scramble": () => page.getByTestId("sentence-scramble-prompt").waitFor(),
+    hangman: async () => {
+      await page.getByRole("button", { name: /^Q$/i }).waitFor();
+      await waitForNoLoadingText(page);
+    },
+    "image-count": async () => {
+      await page.waitForFunction(
+        () => {
+          const matches = Array.from(document.querySelectorAll("[data-testid]"))
+            .map((node) => node.getAttribute("data-testid") ?? "")
+            .filter((value) => /^grid-cell-\d+$/.test(value));
+          return matches.length > 0;
+        },
+        undefined,
+        { timeout: 20_000 },
+      );
+      await waitForNoLoadingText(page);
+    },
+    "letter-shoot": () => page.getByTestId("letter-shoot-board").waitFor(),
+    "letter-drop": () => page.getByTestId("letter-drop-stage").waitFor(),
+    snake: () => page.getByTestId("snake-board").waitFor(),
+  };
+
+  const waitForGame = waiters[gameId];
+  if (!waitForGame) {
+    throw new Error(`No game ready waiter configured for ${gameId}`);
+  }
+  await waitForGame();
+};
+
+const getLessonSyncModeButton = (page) =>
+  page.getByTestId("lesson-header").getByRole("button", { name: /Study|Play/i }).first();
+
+const ensureLessonSyncMode = async (page, targetMode) => {
+  const targetPattern = new RegExp(`^${targetMode}$`, "i");
+  const modeButton = getLessonSyncModeButton(page);
+  await modeButton.waitFor({ timeout: 20_000 });
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const label = (await modeButton.getAttribute("aria-label").catch(() => "")) ?? "";
+    if (targetPattern.test(label)) {
+      return;
+    }
+    await modeButton.click();
+    await page.waitForTimeout(800);
+  }
+  throw new Error(`Failed to switch sync mode to ${targetMode}`);
+};
+
+const waitForStudentStatusLabel = async (page, labelPattern) => {
+  await page.waitForFunction(
+    ({ patternSource, patternFlags }) => {
+      const matcher = new RegExp(patternSource, patternFlags);
+      const labels = Array.from(document.querySelectorAll("button"))
+        .map((node) => node.getAttribute("aria-label") ?? node.textContent ?? "")
+        .map((value) => value.trim())
+        .filter(Boolean);
+      return labels.some((value) => matcher.test(value));
+    },
+    {
+      patternSource: labelPattern.source,
+      patternFlags: labelPattern.flags,
+    },
+    { timeout: 20_000 },
+  );
+};
+
+const setPrimaryStudentOperatorState = async (page, enabled) => {
+  await setTeacherStudentsPanelState(page, { open: true, level: "simple" });
+  const studentCard = getTeacherStudentsPanelCard(page);
+  await studentCard.waitFor({ timeout: 20_000 });
+  const toggleButton = studentCard.getByRole("button", {
+    name: enabled ? /^Viewer$/i : /^Operator$/i,
+  }).first();
+  if (await toggleButton.isVisible().catch(() => false)) {
+    await toggleButton.click();
+    await page.waitForTimeout(1_000);
+  }
+};
+
+const waitForSharedStartupReady = async (page) => {
+  const reachedExpectedUrl = await page
+    .waitForURL(/\/shared\/lesson$/, {
+      timeout: 20_000,
+    })
+    .then(() => true)
+    .catch(() => false);
+
+  if (reachedExpectedUrl) {
+    return;
+  }
+
+  await page.getByTestId("lesson-header-class-name").waitFor({ timeout: 20_000 });
+  await page.getByTestId("lesson-header-school-name").waitFor({ timeout: 20_000 });
+  await page.getByTestId("lesson-header-menu-button").waitFor({ timeout: 20_000 });
+};
+
+const isTeacherSessionUiReady = async (page) =>
+  page
+    .getByRole("button", { name: "TOGGLE STUDENTS" })
+    .isVisible()
+    .catch(() => false);
+
+const readTeacherSessionLessonId = (page) => {
+  const match = page
+    .url()
+    .match(/\/teacher\/lesson\/([^/]+)\/session(?:\/content\/[^/?]+)?/);
+  return match?.[1] ?? null;
+};
+
+const normalizeTeacherSessionStatus = (status) =>
+  status?.trim().toLowerCase().replace(/[_-]/g, "") ?? null;
+
+const readTeacherSessionStatus = async (page, lessonId) =>
+  page.evaluate(
+    async ({ targetLessonId }) => {
+      const accessToken =
+        window.localStorage.getItem("eco:authAccessToken") ??
+        window.sessionStorage.getItem("eco:authAccessToken");
+      if (!accessToken) {
+        return null;
+      }
+
+      const response = await fetch(
+        `/api/sessions/${encodeURIComponent(targetLessonId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+      if (!response.ok) {
+        return null;
+      }
+
+      const contentType = response.headers.get("content-type") ?? "";
+      const responseText = await response.text();
+      if (!contentType.includes("application/json")) {
+        return null;
+      }
+
+      try {
+        const json = JSON.parse(responseText);
+        return json.session?.status ?? null;
+      } catch {
+        return null;
+      }
+    },
+    { targetLessonId: lessonId },
+  );
+
+const hasTeacherLessonStarted = async (page) => {
+  const lessonId = readTeacherSessionLessonId(page);
+  if (!lessonId) {
+    return false;
+  }
+
+  let searchParams;
+  try {
+    searchParams = new URL(page.url()).searchParams;
+  } catch {
+    return false;
+  }
+
+  const startupPending = searchParams.get("startup") === "start";
+  const sessionStatus = await readTeacherSessionStatus(page, lessonId);
+
+  if (sessionStatus === null) {
+    return (
+      !startupPending &&
+      ((await isTeacherSessionUiReady(page)) ||
+        /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/?]+)?\/?(?:\?.*)?$/.test(
+          page.url(),
+        ))
+    );
+  }
+
+  return (
+    !startupPending &&
+    normalizeTeacherSessionStatus(sessionStatus) === "inprogress"
+  );
+};
 
 const openStartupMenuAction = async (page, actionLabel) => {
   await page.getByTestId("lesson-header-menu-button").click();
@@ -2192,90 +2847,425 @@ const findLessonEntryButton = (page, actionLabel) =>
     name: new RegExp(`^${actionLabel}$`, "i"),
   });
 
-const expectSessionReady = async (page, mode) => {
-  await page.waitForURL(
-    new RegExp(`/${mode}/lesson/[^/]+/session(?:/content/[^/]+)?(?:\\?.*)?$`),
-    { timeout: 30_000 },
+const truncateJoinDiagnosticText = (value, maxLength = 400) =>
+  value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+
+const isJoinDiagnosticResponse = (response) => {
+  const url = response.url();
+  if (url.includes("/api/lessons/startup")) {
+    return true;
+  }
+
+  if (!url.includes("/graphql")) {
+    return false;
+  }
+
+  const requestBody = response.request().postData() ?? "";
+  return (
+    requestBody.includes("LessonPresence") ||
+    requestBody.includes("LessonSession")
   );
-  await page.getByTestId("lesson-header").waitFor({ timeout: 20_000 });
-  await page.getByTestId("student-card-content-root").waitFor({
-    timeout: 20_000,
-  });
-  await waitForNoLoadingText(page);
 };
 
-const waitUntilHomeJoinReady = async (page) => {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await openStartupMenuAction(page, "Enter Lesson");
-    const joinButton = findLessonEntryButton(page, "Join");
-    await joinButton.waitFor({ timeout: 30_000 });
+const createJoinNetworkCollector = (page) => {
+  const events = [];
 
-    if (await joinButton.isEnabled()) {
+  const handleResponse = async (response) => {
+    if (!isJoinDiagnosticResponse(response)) {
       return;
     }
 
-    await page.getByRole("button", { name: "Close Enter Lesson" }).click();
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await page.waitForURL(/\/home\/lesson$/, { timeout: 20_000 });
-    await waitForPageReady(page);
+    let responseBody = "";
+    try {
+      responseBody = truncateJoinDiagnosticText(await response.text());
+    } catch (error) {
+      responseBody =
+        error instanceof Error
+          ? `(response body read failed) ${error.message}`
+          : "(response body read failed)";
+    }
+
+    events.push({
+      url: response.url(),
+      method: response.request().method(),
+      status: response.status(),
+      requestBody: truncateJoinDiagnosticText(
+        response.request().postData() ?? "",
+      ),
+      responseBody,
+    });
+  };
+
+  page.on("response", handleResponse);
+
+  return {
+    events,
+    stop: () => {
+      page.off("response", handleResponse);
+    },
+  };
+};
+
+const readLessonJoinDialogState = async (page) => {
+  const dialog = page.getByTestId("enter-lesson-dialog");
+  const joinButton = dialog.getByTestId("enter-lesson-submit-button");
+  const alert = page.getByRole("alert").first();
+  const joinVisible = await joinButton.isVisible().catch(() => false);
+  const alertVisible = await alert.isVisible().catch(() => false);
+  const dialogVisible = await dialog.isVisible().catch(() => false);
+
+  return {
+    url: page.url(),
+    joinVisible,
+    joinEnabled: joinVisible
+      ? await joinButton.isEnabled().catch(() => false)
+      : false,
+    alertText: alertVisible
+      ? ((await alert.textContent({ timeout: 1_000 }).catch(() => "")) ?? "").trim()
+      : "",
+    dialogText: dialogVisible
+      ? ((await dialog.textContent({ timeout: 1_000 }).catch(() => "")) ?? "").trim()
+      : "",
+  };
+};
+
+const formatJoinAttempts = (attempts) =>
+  attempts
+    .map((attempt) =>
+      [
+        `attempt: ${attempt.attempt}`,
+        `mode: ${attempt.mode}`,
+        `url: ${attempt.url}`,
+        `joinVisible: ${attempt.joinVisible}`,
+        `joinEnabled: ${attempt.joinEnabled}`,
+        `alert: ${attempt.alertText || "(empty)"}`,
+        `dialog: ${attempt.dialogText || "(empty)"}`,
+      ].join("\n"),
+    )
+    .join("\n\n");
+
+const formatJoinNetworkEvents = (events, limit = 12) =>
+  events
+    .slice(-limit)
+    .map((event, index) =>
+      [
+        `[${index + 1}] ${event.method} ${event.url}`,
+        `status: ${event.status}`,
+        `request: ${event.requestBody || "(empty)"}`,
+        `response: ${event.responseBody || "(empty)"}`,
+      ].join("\n"),
+    )
+    .join("\n\n");
+
+const isTerminalJoinAlert = (alertText) =>
+  Boolean(
+    alertText &&
+      (
+        alertText.includes("You already have this lesson open in another window.") ||
+        alertText.includes("This Lesson Has Finished.") ||
+        alertText.includes("Failed To Enter Lesson.")
+      ),
+  );
+
+const reopenJoinDialog = async (page, mode) => {
+  const closeButton = page.getByRole("button", { name: "Close Enter Lesson" });
+  const dialog = page.getByTestId("enter-lesson-dialog");
+
+  if (await closeButton.isVisible().catch(() => false)) {
+    await closeButton.click();
+  } else {
+    await page.keyboard.press("Escape").catch(() => {});
+  }
+  await dialog.waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+  await page.reload({ waitUntil: "domcontentloaded" });
+
+  if (mode === "home") {
+    await waitForHomeStartupReady(page);
+  } else {
+    await waitForSharedStartupReady(page);
   }
 
-  await findLessonEntryButton(page, "Join").waitFor({ timeout: 30_000 });
+  await openStartupMenuAction(page, "Enter Lesson");
+  await dialog.waitFor({ state: "visible", timeout: 10_000 });
+};
+
+const truncateTeacherStartDiagnosticText = (value, maxLength = 800) =>
+  value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+
+const isTeacherStartDiagnosticResponse = (response) => {
+  const url = response.url();
+  return /\/api\/sessions\/[^/]+(?:\/start)?$/.test(url);
+};
+
+const createTeacherStartNetworkCollector = (page) => {
+  const events = [];
+  const startedAt = Date.now();
+
+  const handleRequest = (request) => {
+    const url = request.url();
+    if (!/\/api\/sessions\/[^/]+(?:\/start)?$/.test(url)) {
+      return;
+    }
+
+    events.push({
+      phase: "request",
+      elapsedMs: Date.now() - startedAt,
+      url,
+      method: request.method(),
+      requestBody: truncateTeacherStartDiagnosticText(request.postData() ?? ""),
+    });
+  };
+
+  const handleResponse = async (response) => {
+    if (!isTeacherStartDiagnosticResponse(response)) {
+      return;
+    }
+
+    let responseBody = "";
+    try {
+      responseBody = truncateTeacherStartDiagnosticText(await response.text());
+    } catch (error) {
+      responseBody =
+        error instanceof Error
+          ? `(response body read failed) ${error.message}`
+          : "(response body read failed)";
+    }
+
+    events.push({
+      phase: "response",
+      elapsedMs: Date.now() - startedAt,
+      url: response.url(),
+      method: response.request().method(),
+      status: response.status(),
+      requestBody: truncateTeacherStartDiagnosticText(
+        response.request().postData() ?? "",
+      ),
+      responseBody,
+    });
+  };
+
+  page.on("request", handleRequest);
+  page.on("response", handleResponse);
+
+  return {
+    events,
+    stop: () => {
+      page.off("request", handleRequest);
+      page.off("response", handleResponse);
+    },
+  };
+};
+
+const dismissTeacherStartupDialogIfPresent = async (page) => {
+  const closeOtherWindowDialog = page.getByRole("dialog", {
+    name: /Close Other Window/i,
+  });
+  const declineCloseOtherWindowButton = closeOtherWindowDialog.getByRole(
+    "button",
+    { name: /^No$/i },
+  );
+  const closeHostCloseRequestButton = page.getByRole("button", {
+    name: /Close Host Close Request/i,
+  });
+  const closeButton = page.getByRole("button", { name: "Close Start Lesson" });
+  const dialog = page.getByRole("dialog");
+
+  if (await declineCloseOtherWindowButton.isVisible().catch(() => false)) {
+    await declineCloseOtherWindowButton.click();
+    await closeOtherWindowDialog
+      .waitFor({ state: "hidden", timeout: 10_000 })
+      .catch(() => {});
+  } else if (await closeHostCloseRequestButton.isVisible().catch(() => false)) {
+    await closeHostCloseRequestButton.click();
+  }
+
+  const closeVisible = await closeButton.isVisible().catch(() => false);
+
+  if (closeVisible) {
+    await closeButton.click();
+    await dialog.waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+    return;
+  }
+
+  const dialogVisible = await dialog.isVisible().catch(() => false);
+  if (!dialogVisible) {
+    return;
+  }
+
+  await page.keyboard.press("Escape").catch(() => {});
+  await dialog.waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+};
+
+const expectSessionReady = async (page, mode) => {
+  const sessionRoutePattern = new RegExp(
+    `/${mode}/lesson/[^/]+/session(?:/content/[^/?]+)?/?(?:\\?.*)?$`,
+  );
+
+  const reachedSessionRoute = await page
+    .waitForURL(sessionRoutePattern, { timeout: 20_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!reachedSessionRoute) {
+    if (!(mode === "teacher" && (await isTeacherSessionUiReady(page)))) {
+      await page.getByRole("button", { name: "TOGGLE STUDENTS" }).waitFor({
+        timeout: 10_000,
+      });
+      await page.getByRole("heading", { name: /Student Card/i }).waitFor({
+        timeout: 10_000,
+      });
+    }
+  }
+
+  await page.getByTestId("lesson-header").waitFor({ timeout: 20_000 }).catch(() => {});
+  await page.getByTestId("student-card-content-root").waitFor({
+    timeout: 20_000,
+  }).catch(() => {});
+  await waitForNoLoadingText(page);
+};
+
+const waitUntilJoinReady = async (page, mode) => {
+  const attempts = [];
+  const { events, stop } = createJoinNetworkCollector(page);
+  await openStartupMenuAction(page, "Enter Lesson");
+  await page.getByTestId("enter-lesson-dialog").waitFor({ state: "visible" });
+
+  try {
+    for (let attempt = 0; attempt < joinReadyAttempts; attempt += 1) {
+      const state = await readLessonJoinDialogState(page);
+      attempts.push({ attempt, mode, ...state });
+
+      if (state.joinVisible && state.joinEnabled) {
+        return;
+      }
+
+      if (isTerminalJoinAlert(state.alertText)) {
+        throw new Error(
+          `[${mode} join blocked] ${formatJoinAttempts(attempts)}\n\nnetwork:\n${formatJoinNetworkEvents(
+            events,
+          )}`,
+        );
+      }
+
+      if (
+        attempt > 0 &&
+        attempt % joinDialogReopenInterval === 0 &&
+        !state.joinEnabled
+      ) {
+        await reopenJoinDialog(page, mode);
+      } else {
+        await page.waitForTimeout(joinReadyRetryDelayMs);
+      }
+    }
+
+    throw new Error(
+      `[${mode} join remained disabled] ${formatJoinAttempts(attempts)}\n\nnetwork:\n${formatJoinNetworkEvents(
+        events,
+      )}`,
+    );
+  } finally {
+    stop();
+  }
 };
 
 const enterHomeLessonSession = async (page) => {
-  await waitUntilHomeJoinReady(page);
+  await waitUntilJoinReady(page, "home");
   await confirmLessonEntry(page, "Join");
   await expectSessionReady(page, "home");
 };
 
-const ensureTeacherSession = async (page) => {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    if (
-      /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?(?:\?.*)?$/.test(
-        page.url(),
-      )
-    ) {
-      break;
-    }
+const enterSharedLessonSession = async (page) => {
+  await waitUntilJoinReady(page, "shared");
+  await confirmLessonEntry(page, "Join");
+  await expectSessionReady(page, "shared");
+};
 
-    const startButton = findLessonEntryButton(page, "Start");
-    if (
-      (await startButton.isVisible().catch(() => false)) &&
-      (await startButton.isEnabled().catch(() => false))
-    ) {
-      await confirmLessonEntry(page, "Start");
-    } else {
-      if (/\/teacher\/lesson$/.test(page.url())) {
-        await page.getByTestId("lesson-header-menu-button").click();
-        const joinAction = page.getByRole("button", { name: "Join Lesson" });
-        if (await joinAction.isVisible().catch(() => false)) {
-          await joinAction.click();
-        } else {
-          await page.getByRole("button", { name: "Start Lesson" }).click();
+const ensureTeacherSession = async (page) => {
+  const { events, stop } = createTeacherStartNetworkCollector(page);
+
+  try {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const isOnTeacherSessionRoute =
+        /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/?]+)?\/?(?:\?.*)?$/.test(
+          page.url(),
+        );
+      if (
+        ((await isTeacherSessionUiReady(page)) || isOnTeacherSessionRoute) &&
+        (await hasTeacherLessonStarted(page))
+      ) {
+        break;
+      }
+
+      const startButton = page.getByRole("button", { name: /^Start$/i });
+      if (
+        (await startButton.isVisible().catch(() => false)) &&
+        (await startButton.first().isEnabled().catch(() => false))
+      ) {
+        await confirmLessonEntry(page, "Start");
+      } else {
+        const joinButton = page.getByRole("button", { name: /^Join$/i });
+        if (
+          (await joinButton.isVisible().catch(() => false)) &&
+          (await joinButton.first().isEnabled().catch(() => false))
+        ) {
+          await confirmLessonEntry(page, "Join");
+        } else if (/\/teacher\/lesson$/.test(page.url())) {
+          await dismissTeacherStartupDialogIfPresent(page);
+          await page.getByTestId("lesson-header-menu-button").click();
+          const joinLessonAction = page.getByRole("button", {
+            name: "Join Lesson",
+          });
+          if (await joinLessonAction.isVisible().catch(() => false)) {
+            await joinLessonAction.click();
+          } else {
+            await page.getByRole("button", { name: "Start Lesson" }).click();
+          }
+          await page.waitForTimeout(500);
         }
       }
-      const joinButton = findLessonEntryButton(page, "Join");
+
       if (
-        (await joinButton.isVisible().catch(() => false)) &&
-        (await joinButton.isEnabled().catch(() => false))
+        ((await isTeacherSessionUiReady(page)) ||
+          /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/?]+)?\/?(?:\?.*)?$/.test(
+            page.url(),
+          )) &&
+        (await hasTeacherLessonStarted(page))
       ) {
-        await confirmLessonEntry(page, "Join");
+        break;
       }
+
+      if (
+        /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/?]+)?\/?(?:\?.*)?$/.test(
+          page.url(),
+        )
+      ) {
+        await page.reload({ waitUntil: "domcontentloaded" });
+      }
+      await page.waitForTimeout(3_000);
     }
 
-    if (
-      /\/teacher\/lesson\/[^/]+\/session(?:\/content\/[^/]+)?(?:\?.*)?$/.test(
-        page.url(),
+    await expectSessionReady(page, "teacher");
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if (await hasTeacherLessonStarted(page)) {
+        return;
+      }
+      await page.waitForTimeout(3_000);
+    }
+    throw new Error("teacher lesson did not reach inProgress state");
+  } catch (error) {
+    error.message = `${error.message}\n\nteacher-start-network:\n${events
+      .map((event, index) =>
+        [
+          `[${index + 1}] +${event.elapsedMs}ms ${String(event.phase).toUpperCase()} ${event.method} ${event.url}`,
+          `status: ${event.status ?? "(pending)"}`,
+          `request: ${event.requestBody || "(empty)"}`,
+          `response: ${event.responseBody || "(empty)"}`,
+        ].join("\n"),
       )
-    ) {
-      break;
-    }
-
-    await page.waitForTimeout(2_000);
+      .join("\n\n")}`;
+    throw error;
+  } finally {
+    stop();
   }
-
-  await expectSessionReady(page, "teacher");
 };
 
 const ensureHomeSessionByLessonId = async (page, lessonId) => {
@@ -2284,6 +3274,14 @@ const ensureHomeSessionByLessonId = async (page, lessonId) => {
   });
   await waitForPageReady(page);
   await waitForCaptureReady(page, "home-lesson");
+};
+
+const ensureSharedSessionByLessonId = async (page, lessonId) => {
+  await page.goto(`${baseUrl}/shared/lesson/${lessonId}/session?mode=appsync`, {
+    waitUntil: "domcontentloaded",
+  });
+  await waitForPageReady(page);
+  await expectSessionReady(page, "shared");
 };
 
 const setTeacherStudentsPanelState = async (page, { open, level }) => {
@@ -2305,7 +3303,7 @@ const setTeacherStudentsPanelState = async (page, { open, level }) => {
     return;
   }
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
     const matched = await page.evaluate((targetLevel) => {
       const cards = Array.from(document.querySelectorAll("[data-testid]")).map(
         (node) => node.getAttribute("data-testid") ?? "",
@@ -2321,8 +3319,14 @@ const setTeacherStudentsPanelState = async (page, { open, level }) => {
         return cards.some((value) => value.includes("total-score-input"));
       }
       if (targetLevel === "progress") {
-        return cards.some((value) => value.includes("student-student-")) &&
-          !cards.some((value) => value.includes("today-score-input"));
+        return (
+          cards.some((value) => /^student-[^-].*-card$/u.test(value)) &&
+          (
+            !cards.some((value) => value.includes("today-score-input")) ||
+            document.querySelector('[data-progress-anchor="true"]') !== null ||
+            /Progress|Homework/i.test(document.body.innerText)
+          )
+        );
       }
       return false;
     }, level);
@@ -2332,7 +3336,7 @@ const setTeacherStudentsPanelState = async (page, { open, level }) => {
     }
 
     await levelButton.click();
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(level === "progress" ? 1_200 : 700);
   }
 
   throw new Error(`Failed to switch StudentsPanel to ${level}`);
@@ -2359,30 +3363,40 @@ const resolveDeviceModeForPath = (gotoPath) => {
   return "home";
 };
 
-const applyAppContextForPath = async (page, gotoPath) => {
+const applyAppContextForPath = async (page, gotoPath, options = {}) => {
   const deviceMode = resolveDeviceModeForPath(gotoPath);
+  const classId = options.classId ?? fixturePrimaryClassId;
+  const studentId = options.studentId === undefined
+    ? fixturePrimaryStudentId
+    : options.studentId;
   await page.evaluate(
     ({ deviceMode, classId, studentId }) => {
       window.localStorage.setItem("eco:deviceMode", deviceMode);
-      if (classId) {
+      if (classId != null) {
         window.localStorage.setItem("eco:selectedClassId", classId);
+      } else {
+        window.localStorage.removeItem("eco:selectedClassId");
       }
-      if (deviceMode === "home" && studentId) {
+      if (deviceMode === "home" && studentId != null) {
         window.localStorage.setItem("eco:selectedStudentId", studentId);
+      } else if (deviceMode === "home") {
+        window.localStorage.removeItem("eco:selectedStudentId");
       }
-      if (deviceMode === "shared" && studentId) {
+      if (deviceMode === "shared" && studentId != null) {
         window.sessionStorage.setItem("eco:sharedCurrentStudentId", studentId);
+      } else if (deviceMode === "shared") {
+        window.sessionStorage.removeItem("eco:sharedCurrentStudentId");
       }
     },
     {
       deviceMode,
-      classId: fixturePrimaryClassId,
-      studentId: fixturePrimaryStudentId,
+      classId,
+      studentId,
     },
   );
 };
 
-const navigateAfterBrowserLogin = async (page, gotoPath) => {
+const navigateAfterBrowserLogin = async (page, gotoPath, options = {}) => {
   const hasAccessToken = await page.evaluate(
     () =>
       typeof window.localStorage.getItem("eco:authAccessToken") === "string" &&
@@ -2393,7 +3407,7 @@ const navigateAfterBrowserLogin = async (page, gotoPath) => {
     return;
   }
 
-  await applyAppContextForPath(page, gotoPath);
+  await applyAppContextForPath(page, gotoPath, options);
 
   await page.goto(`${baseUrl}${gotoPath}`, { waitUntil: "domcontentloaded" });
 };
@@ -2402,15 +3416,80 @@ const openTeacherStartupPage = async (page) => {
   await applyAppContextForPath(page, "/teacher");
   await page.goto(`${baseUrl}/teacher/lesson`, { waitUntil: "domcontentloaded" });
   await waitForPageReady(page);
+  await waitForTeacherStartupReady(page);
+};
+
+const toTitleCase = (value) =>
+  value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+
+const selectPreviewScope = async (page, { color, unit }) => {
+  const desiredUnitLabel = `Unit ${unit}`;
+  const desiredColorLabel = toTitleCase(color).toUpperCase();
+  const currentUnit = (await page.getByTestId("lesson-header-unit").first().innerText().catch(() => ""))
+    .replace(/\s+/g, " ")
+    .trim();
+  const currentColor = (
+    await page.getByTestId("lesson-header-level-color").first().innerText().catch(() => "")
+  )
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+  if (currentUnit === desiredUnitLabel && currentColor === desiredColorLabel) {
+    return;
+  }
+
+  await page.getByTestId("lesson-header-level-color").first().click();
+  await page.getByText(toTitleCase(color), { exact: true }).last().click();
+  await page.getByText(desiredUnitLabel, { exact: true }).last().click();
+  await page.waitForFunction(
+    ({ colorLabel, unitLabel }) => {
+      const colorNode = document.querySelector('[data-testid="lesson-header-level-color"]');
+      const unitNode = document.querySelector('[data-testid="lesson-header-unit"]');
+      const currentColor = (colorNode?.textContent ?? "").replace(/\s+/g, " ").trim().toUpperCase();
+      const currentUnit = (unitNode?.textContent ?? "").replace(/\s+/g, " ").trim();
+      return currentColor === colorLabel && currentUnit === unitLabel;
+    },
+    { colorLabel: desiredColorLabel, unitLabel: desiredUnitLabel },
+    { timeout: 20_000 },
+  );
+};
+
+const openTeacherPreviewGamesPage = async (page, target) => {
+  await applyAppContextForPath(page, "/teacher");
+  await page.goto(`${baseUrl}/teacher/lesson`, { waitUntil: "domcontentloaded" });
+  await waitForPageReady(page);
+  await selectPreviewScope(page, {
+    color: target.previewColor,
+    unit: target.previewUnit,
+  });
+  await page.getByTestId("lesson-header-menu-button").click();
+  await page.getByRole("button", { name: /^Games$/i }).click();
+  await page.waitForFunction(
+    () => {
+      const text = document.body.innerText.replace(/\s+/g, " ").trim();
+      return /Homework Games|Classroom Games/i.test(text);
+    },
+    undefined,
+    { timeout: 20_000 },
+  );
+};
+
+const openGameFromGameCenter = async (page, target) => {
+  await openTeacherPreviewGamesPage(page, target);
+  await page.getByText(target.gameCenterTitle, { exact: true }).first().click();
+  await page.getByTestId("lesson-header").waitFor();
+  await waitForGameContentReady(page, target.gameId);
 };
 
 const openSharedStartupPage = async (page) => {
   await applyAppContextForPath(page, "/shared");
   await page.goto(`${baseUrl}/shared/lesson`, { waitUntil: "domcontentloaded" });
   await waitForPageReady(page);
+  await waitForSharedStartupReady(page);
 };
 
-const loginAs = async (page, email, gotoPath) => {
+const loginAs = async (page, email, gotoPath, options = {}) => {
   await page.goto(`${baseUrl}${gotoPath}`, { waitUntil: "domcontentloaded" });
   await waitForPageReady(page);
   if (/\/login\b/.test(page.url())) {
@@ -2419,7 +3498,7 @@ const loginAs = async (page, email, gotoPath) => {
     await page.locator('button[type="submit"]').click();
     await page.waitForTimeout(2_000);
     if (/\/login\b/.test(page.url())) {
-      await navigateAfterBrowserLogin(page, gotoPath);
+      await navigateAfterBrowserLogin(page, gotoPath, options);
     }
     const postLoginUrlMap = {
       "/teacher": /\/select-class$|\/teacher\/lesson$/,
@@ -2430,9 +3509,33 @@ const loginAs = async (page, email, gotoPath) => {
     if (postLoginUrl) {
       await page.waitForURL(postLoginUrl, { timeout: 30_000 });
     }
-    await applyAppContextForPath(page, gotoPath);
+    await applyAppContextForPath(page, gotoPath, options);
     await waitForPageReady(page);
   }
+
+  if (gotoPath === "/teacher") {
+    if (/\/select-class$/.test(page.url())) {
+      return;
+    }
+    await waitForTeacherStartupReady(page);
+    return;
+  }
+
+  if (gotoPath === "/home") {
+    await waitForHomeStartupReady(page);
+    return;
+  }
+
+  if (/\/select-class$/.test(page.url())) {
+    return;
+  }
+
+  if (/\/select-student$/.test(page.url())) {
+    await waitForSharedStudentSelectionReady(page);
+    return;
+  }
+
+  await waitForSharedStartupReady(page);
 };
 
 const parentFlow = async (browser, report) => {
@@ -2473,6 +3576,16 @@ const parentFlow = async (browser, report) => {
     await capturePage({
       page,
       pageSpec: getPageSpec("setup-device"),
+      report,
+    });
+  });
+
+  await runStep(report, "parent:restricted-shared", async () => {
+    await page.goto(`${baseUrl}/shared`, { waitUntil: "domcontentloaded" });
+    await waitForPageReady(page);
+    await capturePage({
+      page,
+      pageSpec: getPageSpec("restricted"),
       report,
     });
   });
@@ -2558,7 +3671,7 @@ const sharedFlow = async (browser, report) => {
   const page = await context.newPage();
 
   await runStep(report, "shared:select-class", async () => {
-    await loginAs(page, teacherEmail, "/shared");
+    await loginAs(page, teacherEmail, "/shared", { studentId: null });
     await capturePage({
       page,
       pageSpec: getPageSpec("shared-select-class"),
@@ -2568,6 +3681,9 @@ const sharedFlow = async (browser, report) => {
 
   await runStep(report, "shared:select-student", async () => {
     await page.getByRole("button", { name: /^Select$/i }).click();
+    await waitForPageReady(page);
+    await applyAppContextForPath(page, "/shared", { studentId: null });
+    await page.goto(`${baseUrl}/select-student`, { waitUntil: "domcontentloaded" });
     await waitForPageReady(page);
     await capturePage({
       page,
@@ -2597,6 +3713,16 @@ const sharedFlow = async (browser, report) => {
     });
   });
 
+  await runStep(report, "shared:mypage", async () => {
+    await page.goto(`${baseUrl}/mypage`, { waitUntil: "domcontentloaded" });
+    await waitForPageReady(page);
+    await capturePage({
+      page,
+      pageSpec: getPageSpec("shared-mypage"),
+      report,
+    });
+  });
+
   await context.close();
 };
 
@@ -2607,28 +3733,39 @@ const lessonFlow = async (browser, report) => {
   const homeContext = await createManualCaptureContext(browser, {
     viewport: { width: 1440, height: 1400 },
   });
+  const sharedContext = await createManualCaptureContext(browser, {
+    viewport: { width: 1440, height: 1400 },
+  });
   const teacherPage = await teacherContext.newPage();
   const homePage = await homeContext.newPage();
+  const sharedPage = await sharedContext.newPage();
 
   let lessonId = null;
 
   await runStep(report, "lesson:teacher-session", async () => {
     await loginAs(teacherPage, teacherEmail, "/teacher");
-    if (fixtureLessonId) {
+    if (/\/select-class$/.test(teacherPage.url())) {
+      await waitForCaptureReady(teacherPage, "teacher-select-class");
+      await teacherPage.getByRole("button", { name: /^Select$/i }).click();
+      await waitForPageReady(teacherPage);
+    }
+    try {
+      await ensureTeacherSession(teacherPage);
+      lessonId = extractLessonId(teacherPage.url());
+    } catch (error) {
+      if (!fixtureLessonId) {
+        throw error;
+      }
+      console.warn(
+        `[manual-capture] lesson:teacher-session fallback to fixture lesson ${fixtureLessonId}`,
+      );
       lessonId = fixtureLessonId;
       await teacherPage.goto(
         `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
         { waitUntil: "domcontentloaded" },
       );
+      await waitForPageReady(teacherPage);
       await expectSessionReady(teacherPage, "teacher");
-    } else {
-      if (/\/select-class$/.test(teacherPage.url())) {
-        await waitForCaptureReady(teacherPage, "teacher-select-class");
-        await teacherPage.getByRole("button", { name: /^Select$/i }).click();
-        await waitForPageReady(teacherPage);
-      }
-      await ensureTeacherSession(teacherPage);
-      lessonId = extractLessonId(teacherPage.url());
     }
     await capturePage({
       page: teacherPage,
@@ -2640,22 +3777,46 @@ const lessonFlow = async (browser, report) => {
   if (lessonId) {
     await runStep(report, "lesson:home-session", async () => {
       await loginAs(homePage, parentEmail, "/home");
-      if (fixtureLessonId) {
-        await homePage.goto(
-          `${baseUrl}/home/lesson/${lessonId}/session/content/student-card?mode=appsync`,
-          { waitUntil: "domcontentloaded" },
-        );
-        await expectSessionReady(homePage, "home");
-      } else {
-        if (/\/switch-student$/.test(homePage.url())) {
-          await homePage.getByRole("button", { name: /^Start$/i }).click();
-          await waitForPageReady(homePage);
-        }
+      if (/\/switch-student$/.test(homePage.url())) {
+        await homePage.getByRole("button", { name: /^Start$/i }).click();
+        await waitForPageReady(homePage);
+      }
+      try {
         await enterHomeLessonSession(homePage);
+      } catch (error) {
+        console.warn(
+          `[manual-capture] lesson:home-session fallback to direct lesson ${lessonId}`,
+        );
+        await ensureHomeSessionByLessonId(homePage, lessonId);
       }
       await capturePage({
         page: homePage,
         pageSpec: getPageSpec("home-lesson"),
+        report,
+      });
+    });
+
+    await runStep(report, "lesson:shared-session", async () => {
+      await loginAs(sharedPage, teacherEmail, "/shared");
+      if (/\/select-class$/.test(sharedPage.url())) {
+        await sharedPage.getByRole("button", { name: /^Select$/i }).click();
+        await waitForPageReady(sharedPage);
+      }
+      if (/\/select-student$/.test(sharedPage.url())) {
+        await sharedPage.getByRole("button", { name: /^Select$/i }).click();
+        await waitForPageReady(sharedPage);
+      }
+      try {
+        await enterSharedLessonSession(sharedPage);
+      } catch (error) {
+        console.warn(
+          `[manual-capture] lesson:shared-session fallback to direct lesson ${lessonId}`,
+        );
+        await ensureSharedSessionByLessonId(sharedPage, lessonId);
+      }
+      await capturePage({
+        page: sharedPage,
+        pageSpec: getPageSpec("shared-lesson"),
         report,
       });
     });
@@ -2698,6 +3859,58 @@ const lessonFlow = async (browser, report) => {
       await capturePage({
         page: teacherPage,
         pageSpec: getPageSpec("teacher-panel-progress-md"),
+        report,
+      });
+    });
+
+    await runStep(report, "lesson:student-study-player", async () => {
+      await teacherPage.goto(
+        `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await waitForPageReady(teacherPage);
+      await ensureLessonSyncMode(teacherPage, "Study");
+      await setPrimaryStudentOperatorState(teacherPage, true);
+
+      await ensureHomeSessionByLessonId(homePage, lessonId);
+      await capturePage({
+        page: homePage,
+        pageSpec: getPageSpec("home-lesson-study-player"),
+        report,
+      });
+
+      await ensureSharedSessionByLessonId(sharedPage, lessonId);
+      await capturePage({
+        page: sharedPage,
+        pageSpec: getPageSpec("shared-lesson-study-player"),
+        report,
+      });
+    });
+
+    await runStep(report, "lesson:play-mode", async () => {
+      await teacherPage.goto(
+        `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await waitForPageReady(teacherPage);
+      await ensureLessonSyncMode(teacherPage, "Play");
+      await capturePage({
+        page: teacherPage,
+        pageSpec: getPageSpec("teacher-lesson-play"),
+        report,
+      });
+
+      await ensureHomeSessionByLessonId(homePage, lessonId);
+      await capturePage({
+        page: homePage,
+        pageSpec: getPageSpec("home-lesson-play"),
+        report,
+      });
+
+      await ensureSharedSessionByLessonId(sharedPage, lessonId);
+      await capturePage({
+        page: sharedPage,
+        pageSpec: getPageSpec("shared-lesson-play"),
         report,
       });
     });
@@ -2751,6 +3964,17 @@ const lessonFlow = async (browser, report) => {
       });
     });
 
+    await runStep(report, "lesson:teacher-games-individual", async () => {
+      for (const target of lessonGameTargets) {
+        await openGameFromGameCenter(teacherPage, target);
+        await capturePage({
+          page: teacherPage,
+          pageSpec: getPageSpec(target.slug),
+          report,
+        });
+      }
+    }, { timeoutMs: 180_000 });
+
     await runStep(report, "lesson:teacher-student-card-detail", async () => {
       await teacherPage.goto(
         `${baseUrl}/teacher/lesson/${lessonId}/session/content/student-card?mode=appsync`,
@@ -2766,7 +3990,7 @@ const lessonFlow = async (browser, report) => {
     });
   }
 
-  await Promise.allSettled([teacherContext.close(), homeContext.close()]);
+  await Promise.allSettled([teacherContext.close(), homeContext.close(), sharedContext.close()]);
 };
 
 const generateDocs = async () => {
